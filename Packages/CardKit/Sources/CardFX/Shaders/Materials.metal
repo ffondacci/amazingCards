@@ -253,13 +253,29 @@ using namespace ckm;
 }
 
 // MARK: - Paper
+//
+// Facet model adapted from Paper Design's paper-texture shader
+// (https://github.com/paper-design/shaders, Apache-2.0): the surface is a
+// field of flat facets, each with its own constant slope, blended across
+// rounded shoulders at the creases; a grazing light darkens every facet
+// that turns away from it. Large crumples come from a handful of seed
+// points, wrinkles from three octaves of a sparse cellular grid.
 
 namespace ckpaper {
+
+constant float TAU = 6.28318530718;
+constant int CRUMPLES = 10;
 
 static inline float hash21(float2 p) {
     float3 p3 = fract(float3(p.xyx) * 0.1031);
     p3 += dot(p3, p3.yzx + 33.33);
     return fract((p3.x + p3.y) * p3.z);
+}
+
+static inline float2 hash22(float2 p) {
+    float3 p3 = fract(float3(p.xyx) * float3(0.1031, 0.1030, 0.0973));
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.xx + p3.yz) * p3.zy);
 }
 
 static inline float vnoise(float2 p) {
@@ -273,39 +289,129 @@ static inline float vnoise(float2 p) {
     return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
 
-/// Thin ridges where a value noise crosses its midpoint: a cellular-looking
-/// wrinkle network for four hashes instead of a Voronoi search.
-static inline float ridges(float2 p) {
-    float r = 1.0 - abs(2.0 * vnoise(p) - 1.0);
-    return pow(r, 7.0);
+static inline float lst(float e0, float e1, float x) {
+    return clamp((x - e0) / (e1 - e0), 0.0, 1.0);
 }
 
-/// Height of the wrapper surface at `p` (points): three long folds, fine
-/// wrinkles denser near the edges, crimp bumps in the sealed bands, and the
-/// pillow of the cards inside.
-static inline float height(float2 p, float2 size, float bulge, float crimp) {
-    float h = 0.0;
-    for (int i = 0; i < 3; ++i) {
-        float s = float(i) * 3.7 + 1.0;
-        float ang = hash21(float2(s, 2.0)) * 3.14159;
-        float2 dir = float2(cos(ang), sin(ang));
-        float2 through = float2(hash21(float2(s, 5.0)), hash21(float2(s, 9.0))) * size;
-        float d = abs(dot(p - through, float2(-dir.y, dir.x)));
-        float width = 2.5 + hash21(float2(s, 13.0)) * 2.5;
-        h -= (1.0 + hash21(float2(s, 17.0))) * max(0.0, 1.0 - d / width);
+static inline float2 cellTilt(float idx, float radius, float seed) {
+    float2 r = hash22(float2(idx + 31.0, idx * seed + 17.0));
+    float an = r.x * TAU;
+    return float2(cos(an), sin(an)) * mix(0.3, 1.7, r.y * r.y) * mix(0.7, 1.0, radius);
+}
+
+/// Large facets from `CRUMPLES` seed points. Returns the slope (xy), a
+/// depth term (z) and how close the pixel is to a crease (w).
+static inline float4 crumples(float2 uv, float seed, float2 L, thread float &crease) {
+    float near = 6e4, nearB = 6e4;
+    float idx = 0.0, rad = 0.0;
+    float2 nearP = float2(0.0), nearPb = float2(0.0);
+    float4 seeds[CRUMPLES];
+    for (int i = 0; i < CRUMPLES; ++i) {
+        float2 rand = hash22(float2(float(i), float(i) * seed));
+        float an = rand.x * TAU;
+        float2 p = float2(cos(an), sin(an)) * rand.y;
+        seeds[i] = float4(p, rand);
+        float2 d = uv - p;
+        float dsq = dot(d, d);
+        if (dsq < near) {
+            nearB = near; nearPb = nearP;
+            near = dsq; idx = float(i); rad = rand.y; nearP = p;
+        } else if (dsq < nearB) {
+            nearB = dsq; nearPb = p;
+        }
     }
-    // Wrinkles: a sparse network, almost absent in the middle of the print
-    // and gathering near the edges and the sealed bands.
-    float edgeDist = min(min(p.x, size.x - p.x), min(p.y, size.y - p.y));
-    float edgeMask = 0.06 + 0.94 * (1.0 - smoothstep(0.0, 55.0, edgeDist));
-    h -= 0.7 * (ridges(p / 26.0) + 0.6 * ridges(p / 11.0 + 7.3)) * edgeMask;
-    float band = step(p.y, crimp) + step(size.y - crimp, p.y);
-    float tri = abs(fract(p.x / (size.x / 28.0)) - 0.5) * 2.0;
-    h += 1.6 * tri * band;
-    float2 c = p / size * 2.0 - 1.0;
-    float pillow = (1.0 - pow(abs(c.x), 2.6)) * (1.0 - pow(abs(c.y), 2.6));
-    h += bulge * 10.0 * pillow;
-    return h;
+    float l = sqrt(near), lb = sqrt(nearB);
+    float2 dir = (uv - nearP) / max(l, 1e-4);
+    float edge = lst(0.0, 0.5, lb - l);
+    float shoulderLimit = l + 0.5;
+    float2 tilt = cellTilt(idx, rad, seed);
+    float tiltSum = 1.0;
+    float2 wide = float2(0.0);
+    float wideSum = 0.0;
+    float toEdge = 9.0, edgeSoft = 0.0;
+    for (int i = 0; i < CRUMPLES; ++i) {
+        if (float(i) == idx) continue;
+        float4 sd = seeds[i];
+        float2 p = sd.xy;
+        float2 rand = sd.zw;
+        float2 d = uv - p;
+        float dsq = dot(d, d);
+        if (dsq < shoulderLimit * shoulderLimit) {
+            float di = sqrt(dsq);
+            float sh = lst(0.5, 0.0, di - l);
+            wide += sh * (d / max(di, 1e-4) - dir);
+            wideSum += sh;
+        }
+        float pairSoft = 0.01 + 0.05 * step(0.2, rand.x) + 0.3 * rand.y;
+        float toBis = (dsq - near) / (0.2 * max(length(p - nearP), 1e-4));
+        if (toBis < toEdge) { toEdge = toBis; edgeSoft = pairSoft; }
+        float w = 1.0 - toBis / pairSoft;
+        if (w > 0.0) {
+            w *= w;
+            tilt += w * cellTilt(float(i), rand.y, seed);
+            tiltSum += w;
+        }
+    }
+    float blend = clamp(toEdge / max(edgeSoft, 1e-4), 0.0, 1.0);
+    float2 sharp = (1.0 - edge) * ((uv - nearPb) / max(lb, 1e-4) - dir);
+    float2 rounding = mix(sharp, wide / max(wideSum, 1.0), min(2.0 * edgeSoft, 1.0));
+    float radial = l / max(l + toEdge, 1e-4);
+    // A thin mark along sharp creases, mostly where the ridge faces the
+    // light; soft (rounded) creases leave none.
+    float facing = 0.25 + 0.75 * max(0.0, dot(normalize(nearP - nearPb), L));
+    crease = (1.0 - smoothstep(0.0, 0.12, toEdge)) * (1.0 - smoothstep(0.06, 0.22, edgeSoft)) * facing;
+    return float4(tilt / tiltSum + rounding * blend * radial, 0.2 * l, edge);
+}
+
+/// One octave of small facets on a sparse cellular grid (a fifth of the
+/// cells are dropped so the pattern does not read as a tiling).
+static inline float2 crumpleDetail(float2 uv, float freq, float shift, float seed, float basePixel, float lineWidth, float2 L, thread float &depth, thread float &crease) {
+    depth = 0.0;
+    crease = 0.0;
+    float2 v = uv * freq;
+    float pixel = 0.9 * freq * basePixel;
+    float2 base = floor(v);
+    float n1 = 9.0, n2 = 9.0;
+    float2 s1 = float2(0.0), s2 = float2(0.0), q1 = float2(0.0), q2 = float2(0.0);
+    for (int y = -1; y <= 1; ++y) {
+        for (int x = -1; x <= 1; ++x) {
+            float2 cell = base + float2(float(x), float(y));
+            float2 q = hash22(float2(cell.y * 1.9 + 3.1 + shift, cell.x * 1.3 + 0.11 * seed));
+            if (q.y > 0.8) continue;
+            float2 r = hash22(float2(cell.x + 0.37 * seed + shift + 11.1, cell.y - 0.21 * seed + 5.7));
+            float2 sp = cell + 0.06 + 0.88 * r;
+            float2 d = v - sp;
+            float dsq = dot(d, d);
+            if (dsq < n1) { n2 = n1; s2 = s1; q2 = q1; n1 = dsq; s1 = sp; q1 = q; }
+            else if (dsq < n2) { n2 = dsq; s2 = sp; q2 = q; }
+        }
+    }
+    if (n1 > 8.0) return float2(0.0);
+    float an1 = q1.x * TAU, mag1 = q1.y / 0.8;
+    float2 t1 = float2(cos(an1), sin(an1)) * mix(0.3, 1.7, mag1 * mag1);
+    float an2 = q2.x * TAU, mag2 = q2.y / 0.8;
+    float2 t2 = float2(cos(an2), sin(an2)) * mix(0.3, 1.7, mag2 * mag2);
+    float spanLen = max(length(s1 - s2), 1e-4);
+    float toEdge = (n2 - n1) / (2.0 * spanLen);
+    float pair = hash21(s1 + s2 + 1.7 * abs(s1 - s2));
+    float pairSoft = 0.05 + 0.1 * step(pair, 0.4);
+    float b = clamp(toEdge / max(1.5 * pixel, 0.5 * pairSoft), 0.0, 1.0);
+    b = b * b * (3.0 - 2.0 * b);
+    // Marks only along the sharp creases, about half of them, where the
+    // ridge faces the light.
+    float keep = step(0.45, hash21(s1 * 3.1 + s2 * 1.7)) * step(pairSoft, 0.1);
+    float facing = max(0.0, dot(normalize(s1 - s2), L));
+    crease = (1.0 - smoothstep(0.0, lineWidth, toEdge)) * keep * (0.3 + 0.7 * facing);
+    float d1 = max(sqrt(n1), 1e-4);
+    depth = 0.2 * d1;
+    float shoulderAmt = max(0.0, 1.0 - toEdge / 0.42) * b;
+    float2 shoulder = float2(0.0);
+    if (shoulderAmt > 0.0) {
+        float d2 = max(sqrt(n2), 1e-4);
+        shoulder = shoulderAmt * ((v - s2) / d2 - (v - s1) / d1);
+    }
+    float2 mid = 0.5 * (t1 + t2);
+    return mid + (t1 - mid) * b + 0.9 * shoulder;
 }
 
 static inline float2 resolvePointer(float2 pointer, float2 tilt) {
@@ -324,27 +430,96 @@ static inline half4 premul(float3 rgb, half a) {
 
 } // namespace ckpaper
 
-/// Lit paper wrapper: folds, wrinkles, crimps and the bulge of the cards
-/// inside, shaded by a light that follows the tilt / pointer.
+/// Crumpled paper wrapper: large and small facets lit by a grazing light
+/// that follows the tilt / pointer, the print bending with the relief,
+/// crimp bumps in the sealed bands, the pillow of the cards inside, and a
+/// fine grain plus fibres. `intensity` fades the whole treatment.
 [[stitchable]] half4 ck_paper(
-    float2 position, half4 color,
+    float2 position, SwiftUI::Layer layer,
     float2 size, float2 tilt, float2 pointer, float time, float intensity, float bulge, float crimp
 ) {
-    if (color.a < 0.004h) { return color; }
-    const float e = 1.0;
-    float h0 = ckpaper::height(position, size, bulge, crimp);
-    float hx = ckpaper::height(position + float2(e, 0.0), size, bulge, crimp);
-    float hy = ckpaper::height(position + float2(0.0, e), size, bulge, crimp);
-    float3 n = normalize(float3(-(hx - h0) / e * 1.4, -(hy - h0) / e * 1.4, 1.0));
-    float2 p = ckpaper::resolvePointer(pointer, tilt) - 0.5;
-    float3 L = normalize(float3(-0.35 + p.x * 1.2, -0.55 + p.y * 1.2, 0.9));
-    float diffuse = max(dot(n, L), 0.0);
-    float3 R = reflect(-L, n);
-    float spec = pow(max(R.z, 0.0), 32.0);
-    float3 src = ckpaper::unpremul(color);
-    float3 lit = src * (0.74 + 0.32 * diffuse) + spec * 0.28 * float3(1.0, 0.98, 0.92);
-    float3 result = mix(src, lit, clamp(intensity, 0.0, 1.0));
-    return ckpaper::premul(result, color.a);
+    float2 s = max(size, float2(1.0));
+    float2 uv01 = position / s;
+    float aspect = s.x / s.y;
+    float2 patternUV = (uv01 - 0.5) * float2(aspect, 1.0);
+    float basePixel = 1.0 / s.y;
+    const float seed = 7.0;
+
+    float2 pnt = ckpaper::resolvePointer(pointer, tilt) - 0.5;
+    float2 L = normalize(float2(-0.35 + pnt.x * 1.4, -0.75 + pnt.y * 1.4));
+
+    float2 warp = float2(ckpaper::vnoise(patternUV * 3.0 + 2.0), ckpaper::vnoise(patternUV * 3.0 + 9.0)) - 0.5;
+    float2 crumplesUV = patternUV * 2.2 + 0.03 * warp;
+
+    // Large crumples. Only these bend the print: fine wrinkles would mangle text.
+    float creaseBig = 0.0;
+    float4 c = ckpaper::crumples(crumplesUV, seed, L, creaseBig);
+    float2 bend = 0.5 * c.xy;
+    float2 relief = bend;
+    relief -= 0.1 * max(dot(relief, L), 0.0) * L;
+
+    // Wrinkles, two octaves of smaller facets.
+    float detailFreq = 5.0;
+    float detailAmp = 0.22;
+    float2 detailGrad = float2(0.0);
+    float crease = creaseBig;
+    float creaseWeight = 0.6;
+    for (int i = 0; i < 2; ++i) {
+        float layerDepth, layerCrease;
+        detailGrad += detailAmp * ckpaper::crumpleDetail(
+            crumplesUV, detailFreq, 31.0 * float(i), seed, basePixel * 2.2, 0.045, L, layerDepth, layerCrease
+        );
+        crease = max(crease, layerCrease * creaseWeight);
+        creaseWeight *= 0.6;
+        detailAmp *= 0.45;
+        detailFreq *= 2.1;
+    }
+    float2 detailTilt = 1.5 * detailGrad;
+    detailTilt -= 0.65 * max(dot(detailTilt, L), 0.0) * L;
+    relief += detailTilt;
+
+    // Crimp bumps in the sealed bands, pillow of the cards inside.
+    float band = step(position.y, crimp) + step(s.y - crimp, position.y);
+    float tri = sign(fract(position.x / (s.x / 28.0)) - 0.5);
+    relief.x += 0.6 * tri * band;
+    float2 cuv = uv01 * 2.0 - 1.0;
+    float2 pillow = float2(
+        -sign(cuv.x) * pow(abs(cuv.x), 1.6) * (1.0 - pow(abs(cuv.y), 2.6)),
+        -sign(cuv.y) * pow(abs(cuv.y), 1.6) * (1.0 - pow(abs(cuv.x), 2.6))
+    );
+    relief += bulge * 0.9 * pillow;
+
+    // The print bends gently with the large facets (capped at a few points).
+    float2 offset = (bend * 2.2 + bulge * 0.6 * pillow) * intensity;
+    float offsetLength = length(offset);
+    if (offsetLength > 2.5) { offset *= 2.5 / offsetLength; }
+    float2 displaced = clamp(position - offset, float2(0.0), s);
+    half4 src = layer.sample(displaced);
+    if (src.a < 0.004h) { return src; }
+
+    // Grazing light: facets turning away go dark, facets facing it glow a little.
+    const float grazing = 0.7;
+    float unlit = cos(grazing);
+    float slope = clamp(dot(relief, L), -1.2, 1.2);
+    float lit = max(cos(slope + grazing), 0.0);
+    float lightPower = mix(0.6, 1.0, clamp(0.5 + dot(uv01 - 0.5, L), 0.0, 1.0));
+    float shade = (lit - unlit) * 1.3 * lightPower;
+
+    // Paper grain and fibres.
+    float grain = (ckpaper::vnoise(position * 0.9) - 0.5) * 0.10 + (ckpaper::hash21(floor(position * 0.5)) - 0.5) * 0.05;
+    float fibre = pow(1.0 - abs(2.0 * ckpaper::vnoise(float2(position.x * 0.12, position.y * 0.45) + 3.0) - 1.0), 8.0) * 0.06;
+
+    float3 rgb = ckpaper::unpremul(src);
+    float3 paper = rgb * (1.0 + shade + grain + fibre);
+    // Glossy wrapper: each facet returns its own sheen, flat areas none.
+    float sheen = (pow(lit, 6.0) - pow(unlit, 6.0)) * 0.45 * lightPower;
+    paper += sheen * float3(1.0, 0.98, 0.95);
+    // Fold marks: the print whitens where the paper broke along a crease,
+    // brighter on the side that faces the light.
+    float3 mark = float3(0.95, 0.93, 0.89) * (0.75 + 0.45 * lit);
+    paper = mix(paper, mark, crease * 0.42);
+    float3 result = mix(rgb, paper, clamp(intensity, 0.0, 1.0));
+    return ckpaper::premul(result, src.a);
 }
 
 /// Local paper tension drawn over a wrapper: a dent and radial wrinkles under

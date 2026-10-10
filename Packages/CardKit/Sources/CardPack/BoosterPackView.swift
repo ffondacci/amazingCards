@@ -32,7 +32,7 @@ public struct BoosterPackView: View {
                 ArtworkView(design.cover, contentMode: .fill)
                     .frame(width: w, height: h)
                     .clipped()
-                    .cardEffect(.foilWrap(hue: design.foilHue, intensity: 0.28))
+                    .cardEffect(.foilWrap(hue: design.foilHue, intensity: 0.18))
                     .overlay {
                         LinearGradient(
                             stops: [

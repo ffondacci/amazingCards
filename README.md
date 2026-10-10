@@ -64,11 +64,18 @@ pack is rendered as real pieces while tearing (`TornPackView`): the torn part
 of the band rolls up into a scroll that travels with the finger (`ck_curl`,
 inner foil face with the mirrored print, cylinder shading, cast shadow) and
 flies off at the break, while `ck_sparks` throws a hot core, an ember trail,
-flying sparks and paper flecks from the cutting point. The wrapper is lit
-paper (`ck_paper`: folds, wrinkles gathering near the edges, crimp bumps, and
-the bulge of the cards that deflates once they leave), the paper tenses under
-the finger and ripples ahead of the cut (`ck_paperTension`), and the torn body
-opens like a bag mouth while the cards slide out (`ck_mouth`).
+flying sparks and paper flecks from the cutting point. The wrapper is
+crumpled paper (`ck_paper`, a layer effect): a field of flat facets, each with
+its own slope, blended across rounded shoulders at the creases; large crumples
+come from a handful of seed points and wrinkles from two octaves of a sparse
+cellular grid. A grazing light that follows the tilt darkens every facet
+turning away from it, each facet returns its own sheen, the print bends gently
+with the large facets, sharp creases facing the light leave a whitened mark,
+and crimp bumps plus the bulge of the cards (deflating once they leave) sit on
+top. The paper tenses under the finger and ripples ahead of the cut
+(`ck_paperTension`), and the torn body opens like a bag mouth while the cards
+slide out (`ck_mouth`). The facet model is adapted from Paper Design's
+paper-texture shader (Apache-2.0).
 `PackSoundscape` synthesizes the crinkle, the tearing (pitched by finger
 speed) and the whoosh in the audio render callback, with no audio files. One continuous deck then rises out
 of the pack, settles in the centre and flips its top card; every swipe flips
@@ -111,4 +118,6 @@ NASA/ESA Hubble: Orion, Pillars of Creation; NASA/JPL/SSI: Saturn; Adam Evans:
 Andromeda). Shader looks are original work inspired by physical foils and by
 [ShaderKit](https://github.com/jamesrochabrun/ShaderKit) (MIT),
 [pokemon-cards-css](https://github.com/simeydotme/pokemon-cards-css) (GPL, not
-copied) and [TearKit](https://github.com/NSStudent/TearKit).
+copied) and [TearKit](https://github.com/NSStudent/TearKit). The crumpled-paper
+facet model in `ck_paper` is adapted from
+[Paper Design shaders](https://github.com/paper-design/shaders) (Apache-2.0).

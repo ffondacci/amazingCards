@@ -37,6 +37,7 @@ public struct PackCarouselView: View {
                             BoosterPackView(design: design)
                                 .frame(width: packWidth)
                                 .cardMotionIdle(animates: false)
+                                .drawingGroup()
                                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frames[index] = $0 }
                                 .shadow(color: .black.opacity(0.35), radius: packWidth * 0.06, y: packWidth * 0.04)
                             Ellipse()

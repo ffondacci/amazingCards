@@ -53,7 +53,7 @@ public enum CardEffect: Hashable, Sendable {
 
     public var kind: Kind {
         switch self {
-        case .chromatic: .layer
+        case .chromatic, .paper: .layer
         default: .color
         }
     }
@@ -71,6 +71,7 @@ public enum CardEffect: Hashable, Sendable {
     var maxSampleOffset: CGSize {
         switch self {
         case .chromatic(let amount): CGSize(width: amount, height: amount)
+        case .paper: CGSize(width: 8, height: 8)
         default: .zero
         }
     }

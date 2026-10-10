@@ -36,6 +36,8 @@ public enum CardEffect: Hashable, Sendable {
     case chromatic(amount: Double = 6)
     /// Noise dissolve, `progress` 0 = intact, 1 = gone.
     case dissolve(progress: Double, edgeWidth: Double = 0.08, edgeColor: CardColor = .gold, scale: Double = 6)
+    /// Sparks at a cutting point (local points), thrown opposite to `direction`.
+    case sparks(origin: CGPoint, direction: CGPoint, tint: CardColor = .gold, intensity: Double = 1, life: Double = 0.45)
 
     /// How the pass samples: `color` reads one pixel, `layer` samples around it.
     public enum Kind: Sendable {
@@ -54,7 +56,7 @@ public enum CardEffect: Hashable, Sendable {
     public var isTimeDriven: Bool {
         switch self {
         case .holo(let style, _): style.isTimeDriven
-        case .sparkle, .shimmer, .starfield, .nebula, .burst: true
+        case .sparkle, .shimmer, .starfield, .nebula, .burst, .sparks: true
         case .glare, .sweep, .holoPaper, .foilWrap, .chromatic, .dissolve: false
         }
     }
@@ -81,6 +83,7 @@ public enum CardEffect: Hashable, Sendable {
         case .burst: "Burst"
         case .chromatic: "Chromatic split"
         case .dissolve: "Dissolve"
+        case .sparks: "Sparks"
         }
     }
 
@@ -98,6 +101,7 @@ public enum CardEffect: Hashable, Sendable {
         case .burst: "Ray burst behind a revealed rare card."
         case .chromatic: "RGB split along the tilt direction."
         case .dissolve: "Noise dissolve with a glowing edge, animatable."
+        case .sparks: "Hot core, ember trail and flying sparks at a cut."
         }
     }
 
@@ -107,12 +111,13 @@ public enum CardEffect: Hashable, Sendable {
             .glare(), .sparkle(), .sweep(progress: 0.5), .shimmer(), .holoPaper(), .foilWrap(),
             .starfield(), .nebula(palette: .violet), .nebula(palette: .teal), .nebula(palette: .ember),
             .nebula(palette: .emerald), .burst(), .chromatic(), .dissolve(progress: 0.3),
+            .sparks(origin: CGPoint(x: 150, y: 60), direction: CGPoint(x: 1, y: 0)),
         ]
 
     /// True for generators that replace their source (draw them over an opaque shape).
     public var isGenerator: Bool {
         switch self {
-        case .holoPaper, .starfield, .nebula, .burst: true
+        case .holoPaper, .starfield, .nebula, .burst, .sparks: true
         default: false
         }
     }
@@ -152,6 +157,11 @@ public enum CardEffect: Hashable, Sendable {
             return make("ck_burst", common + [.float(intensity), .float3(tint.red, tint.green, tint.blue)])
         case .chromatic(let amount):
             return make("ck_chromatic", [.float2(size), .float2(motion.tilt), .float(amount)])
+        case .sparks(let origin, let direction, let tint, let intensity, let life):
+            return make("ck_sparks", [
+                .float2(size), .float2(origin), .float2(direction), .float(motion.time),
+                .float(intensity), .float3(tint.red, tint.green, tint.blue), .float(life),
+            ])
         case .dissolve(let progress, let edgeWidth, let edgeColor, let scale):
             return make("ck_dissolve", [
                 .float2(size), .float(progress), .float(edgeWidth),

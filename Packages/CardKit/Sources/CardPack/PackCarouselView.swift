@@ -9,27 +9,22 @@ import SwiftUI
 public struct PackCarouselView: View {
     public var designs: [PackDesign]
     @Binding public var selection: Int
-    /// Namespace shared with `PackOpeningView.packTransition`; the pack at
-    /// `selection` is matched under the id `PackCarouselView.packID(index)`.
-    public var packNamespace: Namespace.ID?
-    public var onOpen: (Int) -> Void
+    /// Called with the index of the centred pack and its frame on screen
+    /// (global coordinates), to hand to `PackOpeningView(arrivesFrom:)`.
+    public var onOpen: (Int, CGRect) -> Void
 
     @State private var scrolledID: Int?
+    @State private var frames: [Int: CGRect] = [:]
 
     public init(
         designs: [PackDesign],
         selection: Binding<Int>,
-        packNamespace: Namespace.ID? = nil,
-        onOpen: @escaping (Int) -> Void
+        onOpen: @escaping (Int, CGRect) -> Void
     ) {
         self.designs = designs
         self._selection = selection
-        self.packNamespace = packNamespace
         self.onOpen = onOpen
     }
-
-    /// Matched-geometry id of the pack at an index.
-    public static func packID(_ index: Int) -> AnyHashable { "pack-\(index)" }
 
     public var body: some View {
         GeometryReader { proxy in
@@ -42,7 +37,7 @@ public struct PackCarouselView: View {
                             BoosterPackView(design: design)
                                 .frame(width: packWidth)
                                 .cardMotionIdle(animates: false)
-                                .modifier(MatchedSource(id: Self.packID(index), namespace: packNamespace))
+                                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frames[index] = $0 }
                                 .shadow(color: .black.opacity(0.35), radius: packWidth * 0.06, y: packWidth * 0.04)
                             Ellipse()
                                 .fill(.black.opacity(0.35))
@@ -58,7 +53,7 @@ public struct PackCarouselView: View {
                         .contentShape(Rectangle())
                         .onTapGesture {
                             if scrolledID == index {
-                                onOpen(index)
+                                onOpen(index, frames[index] ?? .zero)
                             } else {
                                 withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) { scrolledID = index }
                             }
@@ -82,19 +77,6 @@ public struct PackCarouselView: View {
         }
         .onChange(of: selection) { _, newValue in
             if scrolledID != newValue { scrolledID = newValue }
-        }
-    }
-}
-
-private struct MatchedSource: ViewModifier {
-    let id: AnyHashable
-    let namespace: Namespace.ID?
-
-    func body(content: Content) -> some View {
-        if let namespace {
-            content.matchedGeometryEffect(id: id, in: namespace, isSource: true)
-        } else {
-            content
         }
     }
 }

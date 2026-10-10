@@ -26,8 +26,8 @@ cosmos, reverse holo, galaxy, rainbow, gold, amazing, radiant, prism, pearl,
 brushed metal, full art, interference.
 
 Overlays and generators: glare, sparkle, light sweep, shimmer, holo paper,
-foil wrapper, star field, nebula (4 palettes), burst, chromatic split,
-dissolve. Geometry: tear (`ck_tear`), strip curl (`ck_curl`), ripple (`ck_ripple`).
+foil wrapper, star field, nebula (4 palettes), burst, sparks, chromatic
+split, dissolve. Geometry: tear (`ck_tear`), strip curl (`ck_curl`), ripple (`ck_ripple`).
 
 All effects read `CardMotion` (tilt, pointer, time) from the environment.
 
@@ -61,10 +61,11 @@ paper, corner radius, typography and the card back.
 pack is rendered as real pieces while tearing (`TornPackView`): the torn part
 of the band rolls up into a scroll that travels with the finger (`ck_curl`,
 inner foil face with the mirrored print, cylinder shading, cast shadow) and
-flies off at the break. One continuous deck then rises out of the pack,
-settles in the centre and flips its top card; every swipe flips the next
-one. The pack itself travels from where it was tapped (`packTransition`,
-matched geometry with `PackCarouselView`). Foil cards react to the finger, rare pulls get a burst behind them.
+flies off at the break, while `ck_sparks` throws a hot core, an ember trail
+and flying sparks from the cutting point. One continuous deck then rises out
+of the pack, settles in the centre and flips its top card; every swipe flips
+the next one. The pack itself flies from the frame it was tapped in
+(`arrivesFrom`, reported by `PackCarouselView`). Foil cards react to the finger, rare pulls get a burst behind them.
 Packs share the card ratio, so nothing shows until the pack opens.
 `PackDesign` changes the wrapper (colours, foil hue, cover, emblem). The
 generic `tearable` modifier (any view, any direction) uses the `ck_tear`

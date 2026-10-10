@@ -9,25 +9,26 @@ import SwiftUI
 public struct PackOpeningView: View {
     public var design: PackDesign
     public var onFinished: ([Card]) -> Void
-    /// Pair with a `matchedGeometryEffect` on the pack shown elsewhere (a
-    /// carousel, a shop) so the pack travels to the centre when opened.
-    public var packTransition: (id: AnyHashable, namespace: Namespace.ID)?
+    /// Frame (global coordinates) the pack was tapped in, for example from
+    /// `PackCarouselView`: the pack flies from there to the centre.
+    public var arrivesFrom: CGRect?
 
     @State private var model: PackOpeningModel
     @State private var shakeCount = 0
-    /// False while the pack travels from where it was tapped; the deck
-    /// behind it is kept invisible until the pack has settled.
+    /// 0 = pack still at `arrivesFrom`, 1 = at rest. Animated by a spring.
+    @State private var flightProgress: Double = 0
+    /// The deck behind the pack stays invisible until the pack has settled.
     @State private var packSettled = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(
         pack: BoosterPack,
         design: PackDesign,
-        packTransition: (id: AnyHashable, namespace: Namespace.ID)? = nil,
+        arrivesFrom: CGRect? = nil,
         onFinished: @escaping ([Card]) -> Void = { _ in }
     ) {
         self.design = design
-        self.packTransition = packTransition
+        self.arrivesFrom = arrivesFrom
         self.onFinished = onFinished
         self._model = State(initialValue: PackOpeningModel(pack: pack))
     }
@@ -38,10 +39,17 @@ public struct PackOpeningView: View {
             let cardWidth = min(proxy.size.width * 0.72, proxy.size.height * 0.6 * CardMetrics.aspectRatio)
             let packWidth = cardWidth * 1.05
             let packHeight = packWidth / PackDesign.aspectRatio
+            let container = proxy.frame(in: .global)
+            let resting = CGRect(
+                x: container.midX - packWidth / 2,
+                y: container.midY - packHeight / 2,
+                width: packWidth,
+                height: packHeight
+            )
             ZStack {
                 background(size: proxy.size)
                 cardsLayer(cardWidth: cardWidth, packHeight: packHeight, size: proxy.size)
-                packLayer(width: packWidth, height: packHeight, size: proxy.size)
+                packLayer(width: packWidth, height: packHeight, size: proxy.size, resting: resting)
                 hints(size: proxy.size)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
@@ -50,12 +58,29 @@ public struct PackOpeningView: View {
             if phase == .finished { onFinished(model.revealed) }
         }
         .task {
-            // Matched-geometry arrival of the pack takes about half a second.
-            try? await Task.sleep(for: .milliseconds(packTransition == nil ? 0 : 550))
-            packSettled = true
+            var still = Transaction()
+            still.disablesAnimations = true
+            guard let arrivesFrom, arrivesFrom.width > 0, !reduceMotion else {
+                withTransaction(still) {
+                    flightProgress = 1
+                    packSettled = true
+                }
+                return
+            }
+            // Let a couple of frames render at the source, then fly. The deck
+            // shows once the spring has mostly settled.
+            try? await Task.sleep(for: .milliseconds(50))
+            guard !Task.isCancelled else { return }
+            var flight = Transaction(animation: .spring(response: 0.62, dampingFraction: 0.8))
+            flight.disablesAnimations = false
+            withTransaction(flight) { flightProgress = 1 }
+            try? await Task.sleep(for: .milliseconds(520))
+            guard !Task.isCancelled else { return }
+            withTransaction(still) { packSettled = true }
         }
         .onDisappear { model.cancel() }
         .sensoryFeedback(.success, trigger: model.phase == .torn)
+        .sensoryFeedback(.impact(flexibility: .rigid, intensity: 0.45), trigger: Int(model.tear.progress * 14))
         .sensoryFeedback(.levelChange, trigger: model.currentCard?.id)
     }
 
@@ -100,6 +125,7 @@ public struct PackOpeningView: View {
             .scaleEffect(insidePack ? 0.9 : 1)
             .offset(y: offset)
             .opacity(packSettled ? 1 : 0)
+            .transaction { if !packSettled { $0.animation = nil } }
             .animation(.spring(response: 0.8, dampingFraction: 0.78), value: phase)
             .allowsHitTesting(revealed)
             if phase == .finished {
@@ -110,7 +136,7 @@ public struct PackOpeningView: View {
         .animation(.spring(response: 0.6, dampingFraction: 0.8), value: phase)
     }
 
-    private func packLayer(width: CGFloat, height: CGFloat, size: CGSize) -> some View {
+    private func packLayer(width: CGFloat, height: CGFloat, size: CGSize, resting: CGRect) -> some View {
         let phase = model.phase
         let gone = phase == .browsing || phase == .finished
         let bodyOffset: CGFloat = gone ? size.height * 0.9 : (phase == .emerging ? height * 0.42 : 0)
@@ -124,7 +150,7 @@ public struct PackOpeningView: View {
             bodyOffsetY: bodyOffset,
             bodyOpacity: gone ? 0 : 1
         )
-        .modifier(MatchedPack(transition: packTransition, isActive: phase == .sealed))
+        .modifier(PackFlight(source: arrivesFrom, resting: resting, progress: flightProgress))
         .animation(.spring(response: 0.75, dampingFraction: 0.85), value: phase)
         .cardShake(trigger: shakeCount, amplitude: 8)
         .tearable(
@@ -186,16 +212,27 @@ public struct PackOpeningView: View {
     }
 }
 
-/// Applies the optional matched geometry of the pack.
-private struct MatchedPack: ViewModifier {
-    let transition: (id: AnyHashable, namespace: Namespace.ID)?
-    let isActive: Bool
+/// Animatable scale + offset between a source frame and the resting frame,
+/// both in global coordinates. `progress` 0 = at the source, 1 = at rest.
+private struct PackFlight: ViewModifier, Animatable {
+    nonisolated var source: CGRect?
+    nonisolated var resting: CGRect
+    nonisolated var progress: Double
+
+    nonisolated var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
 
     func body(content: Content) -> some View {
-        if let transition {
-            content.matchedGeometryEffect(id: transition.id, in: transition.namespace, isSource: isActive)
-        } else {
-            content
-        }
+        let flies = (source?.width ?? 0) > 0 && resting.width > 0
+        let t = flies ? min(max(progress, 0), 1) : 1
+        let scale: CGFloat = flies ? (source!.width / resting.width) * (1 - t) + t : 1
+        let offset: CGSize = flies
+            ? CGSize(width: (source!.midX - resting.midX) * (1 - t), height: (source!.midY - resting.midY) * (1 - t))
+            : .zero
+        content
+            .scaleEffect(scale)
+            .offset(offset)
     }
 }

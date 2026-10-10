@@ -59,6 +59,29 @@ struct TornPackView: View {
                     .allowsHitTesting(false)
             }
 
+            // Sparks at the cutting point while the finger tears. The layer
+            // overflows the pack so particles can fly past its edges.
+            if front > 0.5, !flyAway, tear.isActive {
+                // Overlay so the oversized layer does not enlarge the stack.
+                let overflow: CGFloat = 90
+                Color.clear
+                    .frame(width: width, height: height)
+                    .overlay {
+                        Rectangle()
+                            .fill(.black)
+                            .frame(width: width + overflow * 2, height: height + overflow * 2)
+                            .cardMotionIdle(animates: true)
+                            .cardEffect(.sparks(
+                                origin: CGPoint(x: rollCenterX + overflow, y: lineY + overflow),
+                                direction: CGPoint(x: fromTrailing ? -1 : 1, y: 0),
+                                tint: design.accent,
+                                intensity: 1.25
+                            ))
+                            .blendMode(.plusLighter)
+                    }
+                    .allowsHitTesting(false)
+            }
+
             // Torn strip rolling up at the finger.
             if front > 0.5 {
                 pack

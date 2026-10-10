@@ -8,14 +8,13 @@ import SwiftUI
 struct BoosterDemoView: View {
     private enum Stage: Equatable {
         case choosing
-        case opening(BoosterPack)
+        case opening(BoosterPack, from: CGRect)
     }
 
     @State private var stage: Stage = .choosing
     @State private var designIndex = 0
     @State private var seed: UInt64 = 1
     @State private var opened: [Card] = []
-    @Namespace private var packSpace
 
     static let designs: [PackDesign] = [
         PackDesign(
@@ -62,12 +61,8 @@ struct BoosterDemoView: View {
                 case .choosing:
                     chooser
                         .transition(.opacity.animation(.easeOut(duration: 0.18)))
-                case .opening(let pack):
-                    PackOpeningView(
-                        pack: pack,
-                        design: design,
-                        packTransition: (PackCarouselView.packID(designIndex), packSpace)
-                    ) { cards in
+                case .opening(let pack, let frame):
+                    PackOpeningView(pack: pack, design: design, arrivesFrom: frame) { cards in
                         opened.append(contentsOf: cards)
                     }
                     .id(pack.id)
@@ -113,9 +108,9 @@ struct BoosterDemoView: View {
                 Text("\(design.cardCount) cards · tap the pack to open it")
                     .font(.footnote)
                     .foregroundStyle(.white.opacity(0.7))
-                PackCarouselView(designs: Self.designs, selection: $designIndex, packNamespace: packSpace) { index in
+                PackCarouselView(designs: Self.designs, selection: $designIndex) { index, frame in
                     designIndex = index
-                    stage = .opening(newPack())
+                    stage = .opening(newPack(), from: frame)
                 }
                 if !opened.isEmpty {
                     Text("\(opened.count) cards collected")

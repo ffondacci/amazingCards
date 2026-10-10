@@ -181,3 +181,57 @@ using namespace ckm;
     float3 result = src + float3(band * intensity * 0.6);
     return premul(result, color.a);
 }
+
+/// Sparks at a cutting point: a hot core at `origin`, an ember trail fading
+/// behind it (opposite to `direction`), and particles thrown backwards and
+/// sideways that fall and die. Generator: ignores the source colour.
+[[stitchable]] half4 ck_sparks(
+    float2 position, half4 color,
+    float2 size, float2 origin, float2 direction, float time, float intensity, float3 tint, float life
+) {
+    float2 p = position - origin;
+    float2 dir = length(direction) > 0.001 ? normalize(direction) : float2(1.0, 0.0);
+    float2 perp = float2(-dir.y, dir.x);
+    float glow = 0.0;
+
+    // Hot core with a flickering halo.
+    float d2 = dot(p, p);
+    float pulse = 0.85 + 0.15 * sin(time * 37.0) + 0.1 * sin(time * 59.0);
+    glow += exp(-d2 / 110.0) * 1.6 * pulse;
+    glow += exp(-d2 / 1600.0) * 0.35;
+
+    // Ember trail along the cut, behind the front, flickering.
+    float along = dot(p, -dir);
+    float across = dot(p, perp);
+    float flicker = 0.7 + 0.3 * vnoise(float2(along * 0.15 - time * 6.0, 3.0));
+    float trail = exp(-across * across / 10.0) * smoothstep(90.0, 0.0, along) * step(0.0, along);
+    glow += trail * flicker * 0.9;
+
+    // Particles: thrown backwards and sideways, stretched along their motion.
+    float lifetime = max(life, 0.1);
+    for (int i = 0; i < 36; ++i) {
+        float seed = float(i) * 7.31;
+        float t = fract(time / lifetime + hash21(float2(seed, 1.0)));
+        float age = t * lifetime;
+        float back = -60.0 - 160.0 * hash21(float2(seed, 2.0));
+        float side = (hash21(float2(seed, 3.0)) - 0.5) * 300.0;
+        float2 velocity = dir * back + perp * side;
+        float2 pos = velocity * age + float2(0.0, 160.0 * age * age);
+        float2 q = p - pos;
+        float2 v = velocity + float2(0.0, 320.0 * age);
+        float speed = max(length(v), 1.0);
+        float2 vd = v / speed;
+        float alongV = dot(q, vd);
+        float acrossV = dot(q, float2(-vd.y, vd.x));
+        float r = 1.3 + 1.8 * hash21(float2(seed, 4.0));
+        float stretch = 1.0 + speed * 0.012;
+        float spark = exp(-(alongV * alongV / (2.0 * r * r * stretch * stretch) + acrossV * acrossV / (2.0 * r * r)))
+            * (1.0 - t) * (0.75 + 0.25 * sin(time * 40.0 + seed));
+        glow += spark * 1.7;
+    }
+
+    float a = clamp(glow * intensity, 0.0, 1.0);
+    float3 col = tint * glow + float3(1.0, 0.96, 0.85) * glow * glow * 0.5;
+    col = clamp(col * intensity, 0.0, 1.0);
+    return half4(half3(col * a), half(a));
+}

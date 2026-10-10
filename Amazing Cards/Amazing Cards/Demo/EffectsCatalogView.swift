@@ -190,6 +190,8 @@ extension CardEffect {
         case .burst(let tint, let intensity): .burst(tint: tint, intensity: intensity * factor)
         case .chromatic(let amount): .chromatic(amount: amount * factor * 2)
         case .dissolve: self
+        case .sparks(let origin, let direction, let tint, let intensity, let life):
+            .sparks(origin: origin, direction: direction, tint: tint, intensity: intensity * factor, life: life)
         }
     }
 }

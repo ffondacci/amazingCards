@@ -13,7 +13,7 @@ public enum CardFXShaders {
     public static let functionNames: [String] = [
         "ck_holo", "ck_glare", "ck_sparkle", "ck_sweep", "ck_holoPaper",
         "ck_foilWrap", "ck_starfield", "ck_nebula", "ck_burst", "ck_shimmer",
-        "ck_chromatic", "ck_dissolve", "ck_tear", "ck_ripple", "ck_curl",
+        "ck_chromatic", "ck_dissolve", "ck_tear", "ck_ripple", "ck_curl", "ck_sparks",
     ]
 
     static func function(_ name: String) -> ShaderFunction {

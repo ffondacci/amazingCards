@@ -13,7 +13,7 @@ public enum CardFXShaders {
     public static let functionNames: [String] = [
         "ck_holo", "ck_glare", "ck_sparkle", "ck_sweep", "ck_holoPaper",
         "ck_foilWrap", "ck_starfield", "ck_nebula", "ck_burst", "ck_shimmer",
-        "ck_chromatic", "ck_dissolve", "ck_tear", "ck_ripple",
+        "ck_chromatic", "ck_dissolve", "ck_tear", "ck_ripple", "ck_curl",
     ]
 
     static func function(_ name: String) -> ShaderFunction {
@@ -44,7 +44,37 @@ public enum CardFXShaders {
                 try? await TearShader.shader(size: size, origin: .zero, tip: .zero, gap: 0, roughness: 0, lift: 0)
                     .compile(as: .layerEffect)
             }
+            group.addTask {
+                try? await CurlShader.shader(size: size, lineY: 60, front: 100, fromTrailing: false, radius: 20, rollMax: 50)
+                    .compile(as: .layerEffect)
+            }
         }
+    }
+}
+
+/// Builder for the progressive strip curl (`ck_curl`), used by `CardPack`.
+public enum CurlShader {
+    /// - Parameters:
+    ///   - lineY: y of the cut in the layer; the strip is above it.
+    ///   - front: torn length from the start edge, in points.
+    ///   - fromTrailing: true when the tear started on the trailing edge.
+    ///   - radius: radius of the roll, in points.
+    ///   - rollMax: arc length rolled at the far end, in points.
+    public static func shader(
+        size: CGSize,
+        lineY: Double,
+        front: Double,
+        fromTrailing: Bool,
+        radius: Double,
+        rollMax: Double
+    ) -> Shader {
+        Shader(
+            function: CardFXShaders.function("ck_curl"),
+            arguments: [
+                .float2(size), .float(lineY), .float(front),
+                .float(fromTrailing ? 1 : 0), .float(radius), .float(rollMax),
+            ]
+        )
     }
 }
 

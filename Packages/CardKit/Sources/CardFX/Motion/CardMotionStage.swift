@@ -24,6 +24,7 @@ public struct CardMotionStage<Content: View>: View {
     private let maxRotation: Double
     private let liftsWhileInteracting: Bool
     private let shadowColor: Color
+    private let showcase: Bool
     private let content: Content
 
     @State private var tilt: CGPoint = .zero
@@ -40,6 +41,8 @@ public struct CardMotionStage<Content: View>: View {
     ///   - maxRotation: degrees of 3D rotation at full tilt.
     ///   - liftsWhileInteracting: scales the card up slightly while touched.
     ///   - shadowColor: colour of the shadow that moves with the tilt.
+    ///   - showcase: on appear, tilts the card in a slow circle for a few
+    ///     seconds so the foil shows off, then settles. Cancelled by any touch.
     public init(
         interaction: CardMotionInteraction = .drag,
         usesDeviceMotion: Bool = true,
@@ -47,6 +50,7 @@ public struct CardMotionStage<Content: View>: View {
         maxRotation: Double = 14,
         liftsWhileInteracting: Bool = true,
         shadowColor: Color = .black,
+        showcase: Bool = false,
         @ViewBuilder content: () -> Content
     ) {
         self.interaction = interaction
@@ -55,6 +59,7 @@ public struct CardMotionStage<Content: View>: View {
         self.maxRotation = maxRotation
         self.liftsWhileInteracting = liftsWhileInteracting
         self.shadowColor = shadowColor
+        self.showcase = showcase
         self.content = content()
     }
 
@@ -84,6 +89,33 @@ public struct CardMotionStage<Content: View>: View {
             .gesture(dragGesture, including: interaction == .drag ? .all : .subviews)
             .onAppear { if usesDeviceMotion { deviceMotion.start() } }
             .onDisappear { deviceMotion.stop() }
+            .task(id: showcase) {
+                guard showcase, !reduceMotion else { return }
+                await runShowcase()
+            }
+    }
+
+    /// Slow circle of tilt for ~3.5 s, structured and cancellable: leaving the
+    /// screen or touching the card ends it and the spring brings it back.
+    private func runShowcase() async {
+        try? await Task.sleep(for: .milliseconds(350))
+        let start = ContinuousClock.now
+        let duration: Duration = .seconds(3.5)
+        while !Task.isCancelled, !isInteracting, ContinuousClock.now - start < duration {
+            let elapsed = (ContinuousClock.now - start).seconds
+            let envelope = min(1, elapsed / 0.6) * min(1, (3.5 - elapsed) / 0.8)
+            let angle = elapsed * 1.9
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                tilt = CGPoint(x: sin(angle) * 0.75 * envelope, y: cos(angle) * 0.55 * envelope)
+                pointer = CGPoint(x: 0.5 + sin(angle) * 0.4 * envelope, y: 0.5 + cos(angle) * 0.4 * envelope)
+            }
+            try? await Task.sleep(for: .milliseconds(16))
+        }
+        guard !isInteracting else { return }
+        pointer = nil
+        withAnimation(.spring(response: 0.7, dampingFraction: 0.6)) { tilt = .zero }
     }
 
     private var dragGesture: some Gesture {

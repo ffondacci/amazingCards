@@ -35,10 +35,8 @@ struct TornPackView: View {
     var body: some View {
         let front = front
         let progress = progress
-        let peel: Double = flyAway ? 112 : Double(progress) * 70
-        let twist: Double = (flyAway ? 1 : Double(progress)) * (fromTrailing ? 9 : -9)
-        let cutAnchor = UnitPoint(x: 0.5, y: design.stripFraction)
-        let frontAnchor = UnitPoint(x: fromTrailing ? 1 - front / max(width, 1) : front / max(width, 1), y: design.stripFraction)
+        let radius = lineY * 0.34
+        let rollMax = radius * .pi * 0.96
 
         ZStack {
             // Body and attached strip.
@@ -59,22 +57,30 @@ struct TornPackView: View {
                 .offset(y: bodyOffsetY)
                 .opacity(bodyOpacity)
 
-            // Torn part of the strip, peeling up.
+            // Torn part of the strip, curling up from the cut as the finger advances.
             if front > 0.5 {
                 pack
                     .overlay { fibreRim(front: front) }
                     .mask {
-                        TornPackMask(kind: .strip, front: front, lineY: lineY, roughness: roughness, fromTrailing: fromTrailing)
+                        TornPackMask(kind: .strip, front: flyAway ? width : front, lineY: lineY, roughness: roughness, fromTrailing: fromTrailing)
                     }
-                    .shadow(color: .black.opacity(0.35), radius: 10, y: 8)
-                    .rotation3DEffect(.degrees(-peel), axis: (x: 1, y: 0, z: 0), anchor: cutAnchor, perspective: 0.6)
-                    .rotationEffect(.degrees(twist), anchor: frontAnchor)
+                    .modifier(
+                        CurlEffectModifier(
+                            lineY: lineY,
+                            front: flyAway ? width * 1.4 : front,
+                            fromTrailing: fromTrailing,
+                            radius: radius,
+                            rollMax: rollMax
+                        )
+                    )
+                    .rotationEffect(.degrees(flyAway ? (fromTrailing ? 12 : -12) : 0), anchor: .top)
                     .offset(
-                        x: flyAway ? (fromTrailing ? width * 0.35 : -width * 0.35) : 0,
-                        y: flyAway ? -height * 0.5 : 0
+                        x: flyAway ? (fromTrailing ? width * 0.4 : -width * 0.4) : 0,
+                        y: flyAway ? -height * 0.45 : 0
                     )
                     .opacity(flyAway ? 0 : 1)
-                    .animation(.easeIn(duration: 0.55), value: flyAway)
+                    .animation(.easeIn(duration: 0.6), value: flyAway)
+                    .allowsHitTesting(false)
             }
         }
         .frame(width: width, height: height)
@@ -94,6 +100,40 @@ struct TornPackView: View {
                 style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round)
             )
             .blur(radius: 0.4)
+    }
+}
+
+/// Animatable application of `ck_curl` so the roll follows springs.
+struct CurlEffectModifier: ViewModifier, Animatable {
+    nonisolated var lineY: Double
+    nonisolated var front: Double
+    nonisolated var fromTrailing: Bool
+    nonisolated var radius: Double
+    nonisolated var rollMax: Double
+
+    nonisolated var animatableData: AnimatablePair<Double, Double> {
+        get { AnimatablePair(front, rollMax) }
+        set {
+            front = newValue.first
+            rollMax = newValue.second
+        }
+    }
+
+    func body(content: Content) -> some View {
+        content.visualEffect { [lineY, front, fromTrailing, radius, rollMax] view, proxy in
+            view.layerEffect(
+                CurlShader.shader(
+                    size: proxy.size,
+                    lineY: lineY,
+                    front: front,
+                    fromTrailing: fromTrailing,
+                    radius: radius,
+                    rollMax: rollMax
+                ),
+                maxSampleOffset: CGSize(width: 0, height: lineY),
+                isEnabled: front > 0.5
+            )
+        }
     }
 }
 
@@ -184,11 +224,13 @@ struct TornPackMask: Shape {
     let design = PackDesign(
         title: "Van Gogh",
         subtitle: "Masterpieces",
+        setCode: "S1",
         cover: .asset("starry_night"),
-        baseColors: [CardColor(hex: 0x1B2A6B), CardColor(hex: 0x0D1230)],
+        topColor: CardColor(hex: 0x1B2A6B),
+        bottomColor: CardColor(hex: 0x0D1230),
+        accent: .gold,
         foilHue: 0.6,
-        emblemSymbol: "paintpalette.fill",
-        bandColor: .gold
+        emblemSymbol: "paintpalette.fill"
     )
     let state = TearState()
     let width: CGFloat = 320

@@ -68,11 +68,13 @@ public struct InteractiveCardView: View {
     public var card: Card
     public var interaction: CardMotionInteraction
     public var usesDeviceMotion: Bool
+    public var showcase: Bool
 
-    public init(card: Card, interaction: CardMotionInteraction = .drag, usesDeviceMotion: Bool = true) {
+    public init(card: Card, interaction: CardMotionInteraction = .drag, usesDeviceMotion: Bool = true, showcase: Bool = false) {
         self.card = card
         self.interaction = interaction
         self.usesDeviceMotion = usesDeviceMotion
+        self.showcase = showcase
     }
 
     public var body: some View {
@@ -80,7 +82,8 @@ public struct InteractiveCardView: View {
         CardMotionStage(
             interaction: interaction,
             usesDeviceMotion: usesDeviceMotion,
-            animates: animates
+            animates: animates,
+            showcase: showcase
         ) {
             CardView(card: card)
         }

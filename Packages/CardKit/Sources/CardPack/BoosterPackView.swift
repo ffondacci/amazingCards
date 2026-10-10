@@ -3,8 +3,10 @@ import CardFX
 import CardUI
 import SwiftUI
 
-/// Printed wrapper of a booster: crimped bands, foil texture, cover window,
-/// title and emblem. Purely visual; `PackOpeningView` adds the gesture.
+/// Printed wrapper of a booster in the pocket-pack style: top band with the
+/// brand and set code, bright seam, full-bleed cover with a foil sheen, big
+/// set name and a name plate over the bottom band. Purely visual;
+/// `PackOpeningView` adds the gesture.
 public struct BoosterPackView: View {
     public var design: PackDesign
 
@@ -16,72 +18,181 @@ public struct BoosterPackView: View {
         GeometryReader { proxy in
             let w = proxy.size.width
             let h = proxy.size.height
-            let band = h * 0.065
-            ZStack {
-                // Wrapper base + foil.
-                RoundedRectangle(cornerRadius: w * 0.03, style: .continuous)
-                    .fill(
+            let top = h * design.stripFraction
+            let bottom = h * design.bottomFraction
+            let radius = w * 0.035
+            ZStack(alignment: .top) {
+                // Full-bleed cover with a metallic sheen.
+                ArtworkView(design.cover, contentMode: .fill)
+                    .frame(width: w, height: h)
+                    .clipped()
+                    .cardEffect(.foilWrap(hue: design.foilHue, intensity: 0.28))
+                    .overlay {
                         LinearGradient(
-                            colors: design.baseColors.map(Color.init),
-                            startPoint: .top, endPoint: .bottom
+                            stops: [
+                                .init(color: .white.opacity(0.22), location: 0),
+                                .init(color: .clear, location: 0.35),
+                                .init(color: .clear, location: 0.7),
+                                .init(color: .black.opacity(0.25), location: 1),
+                            ],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
                         )
-                    )
-                    .cardEffect(.foilWrap(hue: design.foilHue, intensity: 0.85))
-                // Crimped bands.
-                VStack {
-                    CrimpBand(teeth: 26).fill(Color(design.bandColor).opacity(0.85)).frame(height: band)
-                    Spacer()
-                    CrimpBand(teeth: 26).fill(Color(design.bandColor).opacity(0.85)).frame(height: band).rotationEffect(.degrees(180))
+                    }
+
+                // Bands.
+                VStack(spacing: 0) {
+                    topBand(width: w, height: top)
+                    Spacer(minLength: 0)
+                    bottomBand(width: w, height: bottom)
                 }
-                // Perforation line of the tear strip.
-                Path { path in
-                    path.move(to: CGPoint(x: w * 0.04, y: h * design.stripFraction))
-                    path.addLine(to: CGPoint(x: w * 0.96, y: h * design.stripFraction))
-                }
-                .stroke(style: StrokeStyle(lineWidth: max(w * 0.004, 0.8), dash: [w * 0.02, w * 0.015]))
-                .foregroundStyle(.white.opacity(0.45))
-                // Content.
-                VStack(spacing: h * 0.02) {
-                    Spacer(minLength: h * design.stripFraction + h * 0.02)
+
+                // Seam: bright line where the top band is sealed.
+                Rectangle()
+                    .fill(Color(design.accent))
+                    .frame(width: w, height: max(w * 0.008, 1.5))
+                    .shadow(color: Color(design.accent).opacity(0.9), radius: w * 0.012)
+                    .offset(y: top)
+
+                // Set name and plate over the bottom of the cover.
+                VStack(spacing: h * 0.008) {
                     Text(design.title.uppercased())
-                        .font(.system(size: w * 0.11, weight: .black, design: .rounded))
-                        .tracking(w * 0.01)
-                        .foregroundStyle(.white)
-                        .shadow(color: .black.opacity(0.5), radius: w * 0.01, y: w * 0.005)
+                        .font(.system(size: w * 0.12, weight: .black, design: .rounded))
+                        .tracking(w * 0.004)
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
+                        .foregroundStyle(
+                            LinearGradient(colors: [.white, Color(design.accent).opacity(0.85)], startPoint: .top, endPoint: .bottom)
+                        )
+                        .shadow(color: .black.opacity(0.7), radius: w * 0.012, y: w * 0.008)
+                        .shadow(color: Color(design.accent).opacity(0.5), radius: w * 0.03)
                     if let subtitle = design.subtitle {
                         Text(subtitle)
-                            .font(.system(size: w * 0.045, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.85))
+                            .font(.system(size: w * 0.055, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, w * 0.06)
+                            .padding(.vertical, w * 0.012)
+                            .background {
+                                NamePlate()
+                                    .fill(Color(design.accent))
+                                    .overlay { NamePlate().stroke(.white.opacity(0.7), lineWidth: max(w * 0.004, 1)) }
+                                    .shadow(color: .black.opacity(0.5), radius: w * 0.01, y: w * 0.006)
+                            }
                     }
-                    ArtworkView(design.cover, contentMode: .fill)
-                        .frame(width: w * 0.74, height: h * 0.42)
-                        .clipShape(RoundedRectangle(cornerRadius: w * 0.04, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: w * 0.04, style: .continuous)
-                                .strokeBorder(.white.opacity(0.6), lineWidth: w * 0.01)
-                        }
-                        .shadow(color: .black.opacity(0.45), radius: w * 0.03, y: w * 0.02)
-                    HStack(spacing: w * 0.03) {
-                        Image(systemName: design.emblemSymbol)
-                            .font(.system(size: w * 0.07, weight: .bold))
-                        Text("\(design.cardCount) CARDS")
-                            .font(.system(size: w * 0.05, weight: .heavy, design: .rounded))
-                            .tracking(w * 0.006)
-                    }
-                    .foregroundStyle(.white.opacity(0.95))
-                    .padding(.horizontal, w * 0.05)
-                    .padding(.vertical, w * 0.02)
-                    .background(Capsule().fill(.black.opacity(0.35)))
-                    Spacer(minLength: band + h * 0.02)
                 }
-                .padding(.horizontal, w * 0.06)
+                .frame(width: w)
+                .padding(.top, h - bottom - h * 0.165)
+
+                // Sealed edges: tiny crimps at the very top and bottom.
+                VStack {
+                    CrimpBand(teeth: 30).fill(.black.opacity(0.35)).frame(height: h * 0.014)
+                    Spacer()
+                    CrimpBand(teeth: 30).fill(.black.opacity(0.35)).frame(height: h * 0.014).rotationEffect(.degrees(180))
+                }
             }
             .frame(width: w, height: h)
-            .clipShape(RoundedRectangle(cornerRadius: w * 0.03, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(.white.opacity(0.25), lineWidth: max(w * 0.004, 0.8))
+            }
         }
         .aspectRatio(PackDesign.aspectRatio, contentMode: .fit)
+    }
+
+    private func topBand(width w: CGFloat, height: CGFloat) -> some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(design.topColor).opacity(0.95), Color(design.topColor)],
+                startPoint: .top, endPoint: .bottom
+            )
+            EmblemPattern(symbol: design.emblemSymbol, spacing: w * 0.16)
+                .foregroundStyle(.white.opacity(0.08))
+            HStack(alignment: .center, spacing: w * 0.03) {
+                Image(systemName: design.emblemSymbol)
+                    .font(.system(size: height * 0.42, weight: .bold))
+                    .foregroundStyle(Color(design.accent))
+                    .shadow(color: Color(design.accent).opacity(0.8), radius: height * 0.1)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(design.brand)
+                        .font(.system(size: height * 0.26, weight: .black, design: .rounded))
+                        .tracking(height * 0.02)
+                    Text("\(design.cardCount) CARDS")
+                        .font(.system(size: height * 0.18, weight: .bold, design: .rounded))
+                        .opacity(0.75)
+                }
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                Spacer(minLength: 0)
+                if let setCode = design.setCode {
+                    Text(setCode)
+                        .font(.system(size: height * 0.24, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, height * 0.16)
+                        .padding(.vertical, height * 0.07)
+                        .background(RoundedRectangle(cornerRadius: height * 0.12).fill(.black.opacity(0.55)))
+                        .overlay(RoundedRectangle(cornerRadius: height * 0.12).stroke(.white.opacity(0.5), lineWidth: 1))
+                }
+            }
+            .padding(.horizontal, w * 0.06)
+        }
+        .frame(width: w, height: height)
+    }
+
+    private func bottomBand(width w: CGFloat, height: CGFloat) -> some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(design.bottomColor), Color(design.bottomColor).opacity(0.85)],
+                startPoint: .top, endPoint: .bottom
+            )
+            EmblemPattern(symbol: design.emblemSymbol, spacing: w * 0.16)
+                .foregroundStyle(.white.opacity(0.06))
+        }
+        .frame(width: w, height: height)
+        .mask {
+            // Soft top edge so the band blends into the cover.
+            LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.35)], startPoint: .top, endPoint: .bottom)
+        }
+    }
+}
+
+/// Faint repeated emblem, like the ball pattern of real wrappers.
+struct EmblemPattern: View {
+    var symbol: String
+    var spacing: CGFloat
+
+    var body: some View {
+        Canvas { context, size in
+            let columns = Int(size.width / spacing) + 2
+            let rows = Int(size.height / spacing) + 2
+            let glyph = context.resolve(Text(Image(systemName: symbol)).font(.system(size: spacing * 0.45)))
+            for row in 0..<rows {
+                for column in 0..<columns {
+                    let x = CGFloat(column) * spacing + (row.isMultiple(of: 2) ? 0 : spacing / 2) - spacing / 2
+                    let y = CGFloat(row) * spacing - spacing / 2
+                    context.draw(glyph, at: CGPoint(x: x, y: y))
+                }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// Hexagonal plate holding the pack name.
+public struct NamePlate: Shape {
+    public init() {}
+
+    public func path(in rect: CGRect) -> Path {
+        let cut = rect.height * 0.5
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + cut, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX - cut, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.maxX - cut, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX + cut, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.midY))
+        path.closeSubpath()
+        return path
     }
 }
 

@@ -130,3 +130,11 @@ public extension View {
         modifier(CardMotionProvider(tilt: .zero, pointer: nil, isInteracting: false, animates: animates))
     }
 }
+
+extension Duration {
+    /// Seconds as a Double, for animation math.
+    var seconds: Double {
+        let parts = components
+        return Double(parts.seconds) + Double(parts.attoseconds) / 1e18
+    }
+}

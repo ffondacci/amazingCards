@@ -367,11 +367,13 @@ public struct TornEdgeShape: Shape {
     let design = PackDesign(
         title: "Van Gogh",
         subtitle: "Masterpieces",
+        setCode: "S1",
         cover: .asset("starry_night"),
-        baseColors: [CardColor(hex: 0x1B2A6B), CardColor(hex: 0x0D1230)],
+        topColor: CardColor(hex: 0x1B2A6B),
+        bottomColor: CardColor(hex: 0x0D1230),
+        accent: .gold,
         foilHue: 0.6,
-        emblemSymbol: "paintpalette.fill",
-        bandColor: .gold
+        emblemSymbol: "paintpalette.fill"
     )
     ZStack {
         Color(white: 0.08)
@@ -397,11 +399,13 @@ public struct TornEdgeShape: Shape {
     let design = PackDesign(
         title: "Deep Sky",
         subtitle: "Observatory",
+        setCode: "S1",
         cover: .asset("pillars_of_creation"),
-        baseColors: [CardColor(hex: 0x2A0845), CardColor(hex: 0x05020F)],
+        topColor: CardColor(hex: 0x2A0845),
+        bottomColor: CardColor(hex: 0x05020F),
+        accent: .nebula,
         foilHue: 0.8,
-        emblemSymbol: "moon.stars.fill",
-        bandColor: .nebula
+        emblemSymbol: "moon.stars.fill"
     )
     let height = 320 / PackDesign.aspectRatio
     ZStack {

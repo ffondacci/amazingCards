@@ -15,7 +15,7 @@ engineering guidelines.
 | `CardCore` | Pure models: `Card`, `CardContent` (creature / artist / painting / celestial), `Rarity`, `CardFinish`, `BoosterPack`, `BoosterGenerator`, `SeededRandomNumberGenerator`. No UI. |
 | `CardFX` | Metal shaders + SwiftUI modifiers: `CardEffect`, `HoloStyle`, `cardMotion(...)`, `CardMotionStage`, `TiltTransform`, `DeviceMotionSource`, animatable `cardSweep` / `cardDissolve` / `cardRipple`, `CardFXShaders.warmUp()`. |
 | `CardUI` | `CardView` (picks a template per content), `CardMetrics` (size-relative layout), `FinishRecipe`, `CardTheme`, `CardBackView`, `FlippableCardView`, `InteractiveCardView`, `CardFanView`, `ArtworkView` + `ArtworkLoader` actor, `cardIdleFloat`, `cardShake`, `.cardDissolve()` transition. |
-| `CardPack` | `PackDesign`, `BoosterPackView`, `tearable(...)` + `TearState` + `TornEdgeShape`, `TornPackView` (piece-based peel), `CardSwipeStack`, `PackOpeningView` + `PackOpeningModel`. |
+| `CardPack` | `PackDesign` (pocket-pack layout: top band, seam, full-bleed cover, bottom band), `BoosterPackView`, `PackCarouselView`, `tearable(...)` + `TearState` + `TornEdgeShape`, `TornPackView` (strip curls progressively with `ck_curl`), `CardSwipeStack`, `PackOpeningView` + `PackOpeningModel`. |
 
 Dependency direction: `CardCore ← CardFX ← CardUI ← CardPack`.
 
@@ -27,7 +27,7 @@ brushed metal, full art, interference.
 
 Overlays and generators: glare, sparkle, light sweep, shimmer, holo paper,
 foil wrapper, star field, nebula (4 palettes), burst, chromatic split,
-dissolve. Geometry: tear (`ck_tear`), ripple (`ck_ripple`).
+dissolve. Geometry: tear (`ck_tear`), strip curl (`ck_curl`), ripple (`ck_ripple`).
 
 All effects read `CardMotion` (tilt, pointer, time) from the environment.
 
@@ -56,11 +56,12 @@ paper, corner radius, typography and the card back.
 
 ## Booster flow
 
-`PackOpeningView(pack:design:)`: tear the top strip (drag from an edge). The
+`PackCarouselView` presents sealed packs; the centred one opens.
+`PackOpeningView(pack:design:)`: tear the top band (drag from an edge). The
 pack is rendered as real pieces while tearing (`TornPackView`): the torn part
-of the strip peels up in 3D around the cut with a fibrous edge and a cast
-shadow, then flies off; cards slide out of the pack, then you swipe through
-them. Foil cards react to the finger, rare pulls get a burst behind them.
+of the band curls up from the cut, more and more away from the finger, showing
+its inner foil face with a fibrous edge and a cast shadow (`ck_curl`), then
+flies off; cards slide out of the pack, then you swipe through them. Foil cards react to the finger, rare pulls get a burst behind them.
 Packs share the card ratio, so nothing shows until the pack opens.
 `PackDesign` changes the wrapper (colours, foil hue, cover, emblem). The
 generic `tearable` modifier (any view, any direction) uses the `ck_tear`

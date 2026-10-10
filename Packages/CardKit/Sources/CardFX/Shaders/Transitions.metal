@@ -174,3 +174,58 @@ using namespace ckt;
     float2 direction = r > 0.001 ? d / r : float2(0.0);
     return position + direction * wave;
 }
+
+/// Progressive curl of a torn strip. The strip occupies y ∈ [0, lineY] of the
+/// layer. Columns left of `front` (or right of it when `fromTrailing`) are
+/// torn: their bottom edge (the cut) rolls up around a horizontal cylinder of
+/// `radius`, by an arc that grows with the distance from the finger up to
+/// `rollMax`. The rolled part shows the printed face, then the inner foil
+/// face past a quarter turn. A soft shadow is drawn where the strip lifted.
+[[stitchable]] half4 ck_curl(
+    float2 position, SwiftUI::Layer layer,
+    float2 size, float lineY, float front, float fromTrailing, float radius, float rollMax
+) {
+    float u = fromTrailing > 0.5 ? (size.x - position.x) : position.x;
+    float torn = front - u;
+    if (torn <= 0.0 || position.y > lineY + 2.0) { return layer.sample(position); }
+    float k = smoothstep(0.0, max(front * 0.75, 30.0), torn);
+    float r = rollMax * k;
+    if (r < 0.5) { return layer.sample(position); }
+
+    float h = lineY - position.y;
+    if (h < 0.0) { return layer.sample(position); }
+    // Under the lifted edge: nothing but the shadow of the roll.
+    if (h < r) {
+        float shadow = 0.38 * smoothstep(r - 22.0, r, h) * smoothstep(0.0, 6.0, h);
+        return half4(0.0h, 0.0h, 0.0h, half(shadow));
+    }
+    float R = max(radius, 1.0);
+    float c = 1.0 - (h - r) / R;
+    if (c >= -1.0 && c <= 1.0) {
+        float phi = acos(c);
+        float v = r - R * phi;
+        if (v >= 0.0) {
+            half4 s = layer.sample(float2(position.x, lineY - v));
+            if (s.a > 0.01h) {
+                float3 rgb = unpremul(s);
+                if (phi <= M_PI_F * 0.5) {
+                    float rim = pow(max(0.0, sin(phi * 2.0)), 3.0);
+                    rgb *= 0.55 + 0.45 * c;
+                    rgb += rim * 0.35;
+                } else {
+                    float g = dot(rgb, float3(0.3, 0.59, 0.11));
+                    float3 silver = float3(0.80, 0.82, 0.87) * (0.55 + 0.45 * (-c));
+                    rgb = mix(silver, float3(g), 0.22);
+                    rgb += 0.18 * pow(max(0.0, -c), 4.0);
+                }
+                return premul(rgb, s.a);
+            }
+        }
+    }
+    // Flat paper above the roll, with a contact shadow next to it.
+    half4 s = layer.sample(position);
+    float3 rgb = unpremul(s);
+    float top = r + R * 2.0;
+    rgb *= 1.0 - 0.28 * smoothstep(top + 18.0, top, h) * step(top, h);
+    return premul(rgb, s.a);
+}

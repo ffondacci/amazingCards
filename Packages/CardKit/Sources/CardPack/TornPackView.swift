@@ -97,16 +97,20 @@ struct TornPackView: View {
             // breaks. The layer overflows the pack so particles fly past
             // its edges; it is an overlay so it does not enlarge the stack.
             if sparkIntensity > 0.01 {
+                // The layer starts `overflow` points above and left of the
+                // pack, so the cut line sits at y = lineY + overflow inside it.
                 let overflow: CGFloat = 90
                 let sparkX = flyAway ? (fromTrailing ? 0 : width) : rollCenterX
                 let layerHeight = lineY + overflow + 220
+                // The effect is applied to the sized rectangle itself, before
+                // it is positioned: a shader placed after `position`/`offset`
+                // runs in the enclosing frame's coordinates instead.
                 Color.clear
                     .frame(width: width, height: height)
-                    .overlay(alignment: .top) {
+                    .overlay {
                         Rectangle()
                             .fill(.black)
                             .frame(width: width + overflow * 2, height: layerHeight)
-                            .offset(y: -overflow)
                             .cardEffect(.sparks(
                                 origin: CGPoint(x: sparkX + overflow, y: lineY + overflow),
                                 direction: CGPoint(x: fromTrailing ? -1 : 1, y: 0),
@@ -115,6 +119,7 @@ struct TornPackView: View {
                             ))
                             .cardMotionIdle(animates: true)
                             .blendMode(.plusLighter)
+                            .position(x: width / 2, y: layerHeight / 2 - overflow)
                     }
                     .allowsHitTesting(false)
             }

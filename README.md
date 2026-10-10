@@ -15,7 +15,7 @@ engineering guidelines.
 | `CardCore` | Pure models: `Card`, `CardContent` (creature / artist / painting / celestial), `Rarity`, `CardFinish`, `BoosterPack`, `BoosterGenerator`, `SeededRandomNumberGenerator`. No UI. |
 | `CardFX` | Metal shaders + SwiftUI modifiers: `CardEffect`, `HoloStyle`, `cardMotion(...)` (apply it *outside* the effects), `CardMotionStage`, `TiltTransform`, `DeviceMotionSource`, animatable `cardSweep` / `cardDissolve` / `cardRipple`, `renderScale(_:)` for cheap backgrounds, `CardFXShaders.warmUp(first:)`. |
 | `CardUI` | `CardView` (picks a template per content), `CardMetrics` (size-relative layout), `FinishRecipe`, `CardTheme`, `CardBackView`, `FlippableCardView`, `InteractiveCardView`, `CardFanView`, `ArtworkView` + `ArtworkLoader` actor, `cardIdleFloat`, `cardShake`, `.cardDissolve()` transition. |
-| `CardPack` | `PackDesign` (pocket-pack layout: top band, seam, full-bleed cover, bottom band), `BoosterPackView` (lit paper wrapper: folds, wrinkles, crimps, bulge), `PackCarouselView`, `tearable(...)` + `TearState` + `TornEdgeShape`, `TornPackView` (strip rolls up with `ck_curl`, sparks and paper flecks with `ck_sparks`, tension under the finger, bag mouth with `ck_mouth`), `CardSwipeStack`, `PackOpeningView` + `PackOpeningModel`, `PackSoundscape` + `PackSoundSet` (your own sound files for the tear), `PackWarmUpView`. |
+| `CardPack` | `PackLayout` + `.packLayout(_:)` (every size of the pack flow as fractions: `.standard`, `.compact`, `.large`), `PackDesign` (pocket-pack layout: top band, seam, full-bleed cover, bottom band, foil and prism strength), `BoosterPackView` (lit paper wrapper: folds, wrinkles, crimps, bulge), `PackCarouselView`, `tearable(...)` + `TearState` + `TornEdgeShape`, `TornPackView` (strip rolls up with `ck_curl`, sparks and paper flecks with `ck_sparks`, tension under the finger, bag mouth with `ck_mouth`), `CardSwipeStack`, `PackOpeningView` + `PackOpeningModel`, `PackSoundscape` + `PackSoundSet` (your own sound files for the tear), `PackWarmUpView`. |
 
 Dependency direction: `CardCore ← CardFX ← CardUI ← CardPack`.
 
@@ -58,6 +58,9 @@ paper, corner radius, typography and the card back.
 
 ## Booster flow
 
+Sizes come from one `PackLayout` (fractions of the available space plus an
+optional cap), set once for the app with `.packLayout(.large)`; the defaults
+give big cards and a pack a hair larger than them.
 `PackCarouselView` presents sealed packs; the centred one opens.
 `PackOpeningView(pack:design:)`: tear the top band (drag from an edge). The
 pack is rendered as real pieces while tearing (`TornPackView`): the torn part

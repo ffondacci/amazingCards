@@ -25,6 +25,8 @@ public struct PackDesign: Hashable, Sendable {
     public var accent: CardColor
     /// Hue (0…1) of the metallic sheen over the cover.
     public var foilHue: Double
+    /// Strength (0…1) of the prism rings over the whole wrapper, 0 = none.
+    public var prismIntensity: Double
     /// SF Symbol used as brand emblem.
     public var emblemSymbol: String
     /// Number of cards announced on the wrapper.
@@ -44,6 +46,7 @@ public struct PackDesign: Hashable, Sendable {
         bottomColor: CardColor,
         accent: CardColor = .gold,
         foilHue: Double = 0.62,
+        prismIntensity: Double = 0.2,
         emblemSymbol: String = "sparkles",
         cardCount: Int = 5,
         stripFraction: CGFloat = 0.14,
@@ -58,6 +61,7 @@ public struct PackDesign: Hashable, Sendable {
         self.bottomColor = bottomColor
         self.accent = accent
         self.foilHue = foilHue
+        self.prismIntensity = prismIntensity
         self.emblemSymbol = emblemSymbol
         self.cardCount = cardCount
         self.stripFraction = stripFraction

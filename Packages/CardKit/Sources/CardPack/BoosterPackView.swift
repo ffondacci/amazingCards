@@ -96,6 +96,7 @@ public struct BoosterPackView: View {
                 }
             }
             .frame(width: w, height: h)
+            .cardEffect(.holo(.prism, intensity: design.prismIntensity), isEnabled: design.prismIntensity > 0.005)
             .cardEffect(.paper(bulge: bulge, crimp: h * 0.014, intensity: paperIntensity), isEnabled: paperIntensity > 0.01)
             .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
             .overlay {

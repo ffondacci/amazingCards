@@ -15,6 +15,7 @@ public struct PackCarouselView: View {
 
     @State private var scrolledID: Int?
     @State private var frames: [Int: CGRect] = [:]
+    @Environment(\.packLayout) private var layout
 
     public init(
         designs: [PackDesign],
@@ -28,7 +29,7 @@ public struct PackCarouselView: View {
 
     public var body: some View {
         GeometryReader { proxy in
-            let packWidth = min(proxy.size.width * 0.5, proxy.size.height * 0.6 * PackDesign.aspectRatio)
+            let packWidth = layout.carouselPackWidth(in: proxy.size)
             let side = (proxy.size.width - packWidth) / 2
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .center, spacing: packWidth * 0.12) {

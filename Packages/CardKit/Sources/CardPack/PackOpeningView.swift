@@ -21,6 +21,7 @@ public struct PackOpeningView: View {
     @State private var packSettled = false
     @State private var sounds: PackSoundscape
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.packLayout) private var layout
 
     /// Sound files for the tear (crinkle, tearing loop, whoosh); nil = silent.
     public var soundSet: PackSoundSet?
@@ -43,9 +44,10 @@ public struct PackOpeningView: View {
     public var body: some View {
         GeometryReader { proxy in
             // The pack is a hair larger than the cards: nothing shows until it opens.
-            let cardWidth = min(proxy.size.width * 0.72, proxy.size.height * 0.6 * CardMetrics.aspectRatio)
-            let packWidth = cardWidth * 1.05
-            let packHeight = packWidth / PackDesign.aspectRatio
+            let cardWidth = layout.cardWidth(in: proxy.size)
+            let packSize = layout.packSize(in: proxy.size)
+            let packWidth = packSize.width
+            let packHeight = packSize.height
             let container = proxy.frame(in: .global)
             let resting = CGRect(
                 x: container.midX - packWidth / 2,

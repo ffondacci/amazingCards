@@ -30,8 +30,8 @@ enum AnimationDemo: String, CaseIterable, Identifiable {
 
     var summary: String {
         switch self {
-        case .tilt: "CardMotionStage: drag to tilt, springs back, gyroscope on device."
-        case .flip: "FlippableCardView: 3D flip between back and face."
+        case .tilt: "CardMotionStage: showcase circle on appear, drag to tilt, springs back, gyroscope on device."
+        case .flip: "FlippableCardView: pop flip on a soft spring, foil reacts to the turn."
         case .idleFloat: "cardIdleFloat: endless levitation with phaseAnimator."
         case .shake: "cardShake: keyframe shake on a trigger."
         case .sweep: "cardSweep: animatable light band."
@@ -133,7 +133,7 @@ struct AnimationDemoView: View {
     private var stage: some View {
         switch demo {
         case .tilt:
-            InteractiveCardView(card: foilCard)
+            InteractiveCardView(card: foilCard, showcase: true)
         case .flip:
             CardMotionStage(interaction: .none, animates: false) {
                 FlippableCardView(card: foilCard, isFaceUp: $isFaceUp)
@@ -200,7 +200,7 @@ struct AnimationDemoView: View {
         switch demo {
         case .flip:
             Button("Flip") {
-                withAnimation(.spring(response: 0.7, dampingFraction: 0.72)) { isFaceUp.toggle() }
+                withAnimation(.cardFlip) { isFaceUp.toggle() }
             }
             .buttonStyle(.borderedProminent)
         case .shake:

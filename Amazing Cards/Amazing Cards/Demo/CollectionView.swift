@@ -93,7 +93,7 @@ struct CardDetailView: View {
                 .pickerStyle(.menu)
                 HStack(spacing: 16) {
                     Button {
-                        withAnimation(.spring(response: 0.7, dampingFraction: 0.72)) { isFaceUp.toggle() }
+                        withAnimation(.cardFlip) { isFaceUp.toggle() }
                     } label: {
                         Label("Flip", systemImage: "arrow.trianglehead.2.clockwise.rotate.90")
                     }

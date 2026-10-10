@@ -15,7 +15,7 @@ engineering guidelines.
 | `CardCore` | Pure models: `Card`, `CardContent` (creature / artist / painting / celestial), `Rarity`, `CardFinish`, `BoosterPack`, `BoosterGenerator`, `SeededRandomNumberGenerator`. No UI. |
 | `CardFX` | Metal shaders + SwiftUI modifiers: `CardEffect`, `HoloStyle`, `cardMotion(...)` (apply it *outside* the effects), `CardMotionStage`, `TiltTransform`, `DeviceMotionSource`, animatable `cardSweep` / `cardDissolve` / `cardRipple`, `renderScale(_:)` for cheap backgrounds, `CardFXShaders.warmUp(first:)`. |
 | `CardUI` | `CardView` (picks a template per content), `CardMetrics` (size-relative layout), `FinishRecipe`, `CardTheme`, `CardBackView`, `FlippableCardView`, `InteractiveCardView`, `CardFanView`, `ArtworkView` + `ArtworkLoader` actor, `cardIdleFloat`, `cardShake`, `.cardDissolve()` transition. |
-| `CardPack` | `PackDesign` (pocket-pack layout: top band, seam, full-bleed cover, bottom band), `BoosterPackView`, `PackCarouselView`, `tearable(...)` + `TearState` + `TornEdgeShape`, `TornPackView` (strip rolls up with `ck_curl`, sparks with `ck_sparks`), `CardSwipeStack`, `PackOpeningView` + `PackOpeningModel`, `PackWarmUpView`. |
+| `CardPack` | `PackDesign` (pocket-pack layout: top band, seam, full-bleed cover, bottom band), `BoosterPackView` (lit paper wrapper: folds, wrinkles, crimps, bulge), `PackCarouselView`, `tearable(...)` + `TearState` + `TornEdgeShape`, `TornPackView` (strip rolls up with `ck_curl`, sparks and paper flecks with `ck_sparks`, tension under the finger, bag mouth with `ck_mouth`), `CardSwipeStack`, `PackOpeningView` + `PackOpeningModel`, `PackSoundscape` (procedural crinkle, tear, whoosh), `PackWarmUpView`. |
 
 Dependency direction: `CardCore ← CardFX ← CardUI ← CardPack`.
 
@@ -26,8 +26,10 @@ cosmos, reverse holo, galaxy, rainbow, gold, amazing, radiant, prism, pearl,
 brushed metal, full art, interference.
 
 Overlays and generators: glare, sparkle, light sweep, shimmer, holo paper,
-foil wrapper, star field, nebula (4 palettes), burst, sparks, chromatic
-split, dissolve. Geometry: tear (`ck_tear`), strip curl (`ck_curl`), ripple (`ck_ripple`).
+foil wrapper, star field, nebula (4 palettes), burst, sparks (with paper
+flecks), paper (lit folds, wrinkles, crimps, bulge), paper tension (dent under
+the finger, ripples ahead of a cut), chromatic split, dissolve. Geometry: tear
+(`ck_tear`), strip curl (`ck_curl`), bag mouth (`ck_mouth`), ripple (`ck_ripple`).
 
 All effects read `CardMotion` (tilt, pointer, time) from the environment.
 
@@ -61,8 +63,14 @@ paper, corner radius, typography and the card back.
 pack is rendered as real pieces while tearing (`TornPackView`): the torn part
 of the band rolls up into a scroll that travels with the finger (`ck_curl`,
 inner foil face with the mirrored print, cylinder shading, cast shadow) and
-flies off at the break, while `ck_sparks` throws a hot core, an ember trail
-and flying sparks from the cutting point. One continuous deck then rises out
+flies off at the break, while `ck_sparks` throws a hot core, an ember trail,
+flying sparks and paper flecks from the cutting point. The wrapper is lit
+paper (`ck_paper`: folds, wrinkles gathering near the edges, crimp bumps, and
+the bulge of the cards that deflates once they leave), the paper tenses under
+the finger and ripples ahead of the cut (`ck_paperTension`), and the torn body
+opens like a bag mouth while the cards slide out (`ck_mouth`).
+`PackSoundscape` synthesizes the crinkle, the tearing (pitched by finger
+speed) and the whoosh in the audio render callback, with no audio files. One continuous deck then rises out
 of the pack, settles in the centre and flips its top card; every swipe flips
 the next one. The pack itself flies from the frame it was tapped in
 (`arrivesFrom`, reported by `PackCarouselView`). Foil cards react to the finger, rare pulls get a burst behind them.

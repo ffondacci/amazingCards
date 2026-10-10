@@ -38,6 +38,12 @@ public enum CardEffect: Hashable, Sendable {
     case dissolve(progress: Double, edgeWidth: Double = 0.08, edgeColor: CardColor = .gold, scale: Double = 6)
     /// Sparks at a cutting point (local points), thrown opposite to `direction`.
     case sparks(origin: CGPoint, direction: CGPoint, tint: CardColor = .gold, intensity: Double = 1, life: Double = 0.45)
+    /// Lit paper wrapper: folds, wrinkles, crimp bumps (`crimp` points tall
+    /// at the top and bottom) and the `bulge` (0…1) of the cards inside.
+    case paper(bulge: Double = 1, crimp: Double = 0, intensity: Double = 1)
+    /// Paper tension under a finger at `point` (local points), with ripples
+    /// ahead of a cut at x = `front` running towards `direction` (±1).
+    case paperTension(point: CGPoint, front: Double, direction: Double, strength: Double = 1)
 
     /// How the pass samples: `color` reads one pixel, `layer` samples around it.
     public enum Kind: Sendable {
@@ -56,8 +62,8 @@ public enum CardEffect: Hashable, Sendable {
     public var isTimeDriven: Bool {
         switch self {
         case .holo(let style, _): style.isTimeDriven
-        case .sparkle, .shimmer, .starfield, .nebula, .burst, .sparks: true
-        case .glare, .sweep, .holoPaper, .foilWrap, .chromatic, .dissolve: false
+        case .sparkle, .shimmer, .starfield, .nebula, .burst, .sparks, .paperTension: true
+        case .glare, .sweep, .holoPaper, .foilWrap, .chromatic, .dissolve, .paper: false
         }
     }
 
@@ -84,6 +90,8 @@ public enum CardEffect: Hashable, Sendable {
         case .chromatic: "Chromatic split"
         case .dissolve: "Dissolve"
         case .sparks: "Sparks"
+        case .paper: "Paper"
+        case .paperTension: "Paper tension"
         }
     }
 
@@ -101,7 +109,9 @@ public enum CardEffect: Hashable, Sendable {
         case .burst: "Ray burst behind a revealed rare card."
         case .chromatic: "RGB split along the tilt direction."
         case .dissolve: "Noise dissolve with a glowing edge, animatable."
-        case .sparks: "Hot core, ember trail and flying sparks at a cut."
+        case .sparks: "Hot core, ember trail, flying sparks and paper flecks at a cut."
+        case .paper: "Folds, wrinkles and crimps lit by the tilt, with the bulge of the cards inside."
+        case .paperTension: "Dent and wrinkles under the finger, ripples ahead of the cut."
         }
     }
 
@@ -112,12 +122,14 @@ public enum CardEffect: Hashable, Sendable {
             .starfield(), .nebula(palette: .violet), .nebula(palette: .teal), .nebula(palette: .ember),
             .nebula(palette: .emerald), .burst(), .chromatic(), .dissolve(progress: 0.3),
             .sparks(origin: CGPoint(x: 150, y: 60), direction: CGPoint(x: 1, y: 0)),
+            .paper(bulge: 1, crimp: 14),
+            .paperTension(point: CGPoint(x: 150, y: 60), front: 150, direction: 1),
         ]
 
     /// True for generators that replace their source (draw them over an opaque shape).
     public var isGenerator: Bool {
         switch self {
-        case .holoPaper, .starfield, .nebula, .burst, .sparks: true
+        case .holoPaper, .starfield, .nebula, .burst, .sparks, .paperTension: true
         default: false
         }
     }
@@ -161,6 +173,12 @@ public enum CardEffect: Hashable, Sendable {
             return make("ck_sparks", [
                 .float2(size), .float2(origin), .float2(direction), .float(motion.time),
                 .float(intensity), .float3(tint.red, tint.green, tint.blue), .float(life),
+            ])
+        case .paper(let bulge, let crimp, let intensity):
+            return make("ck_paper", common + [.float(intensity), .float(bulge), .float(crimp)])
+        case .paperTension(let point, let front, let direction, let strength):
+            return make("ck_paperTension", [
+                .float2(size), .float2(point), .float(front), .float(direction), .float(strength), .float(motion.time),
             ])
         case .dissolve(let progress, let edgeWidth, let edgeColor, let scale):
             return make("ck_dissolve", [

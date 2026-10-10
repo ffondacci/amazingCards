@@ -28,7 +28,11 @@ public struct PackWarmUpView: View {
     public var body: some View {
         if !done {
             ZStack {
-                PackOpeningView(pack: BoosterPack(name: "warm-up", cards: Array(sampleCards.prefix(3))), design: design)
+                PackOpeningView(
+                    pack: BoosterPack(name: "warm-up", cards: Array(sampleCards.prefix(3))),
+                    design: design,
+                    playsSound: false
+                )
                 TornPackView(
                     design: design,
                     width: 200,

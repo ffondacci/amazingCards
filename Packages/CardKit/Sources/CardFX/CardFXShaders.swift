@@ -14,6 +14,7 @@ public enum CardFXShaders {
         "ck_holo", "ck_glare", "ck_sparkle", "ck_sweep", "ck_holoPaper",
         "ck_foilWrap", "ck_starfield", "ck_nebula", "ck_burst", "ck_shimmer",
         "ck_chromatic", "ck_dissolve", "ck_tear", "ck_ripple", "ck_curl", "ck_sparks",
+        "ck_paper", "ck_paperTension", "ck_mouth",
     ]
 
     static func function(_ name: String) -> ShaderFunction {
@@ -33,6 +34,7 @@ public enum CardFXShaders {
             .compile(as: .layerEffect)
         try? await TearShader.shader(size: size, origin: .zero, tip: .zero, gap: 0, roughness: 0, lift: 0)
             .compile(as: .layerEffect)
+        try? await MouthShader.shader(size: size, open: 1, lineY: 40, depth: 100).compile(as: .distortionEffect)
         // The rest compiles one at a time at low priority: a burst of
         // parallel Metal compilations starves the main thread and shows as
         // dropped frames in whatever the user does meanwhile.
@@ -46,8 +48,9 @@ public enum CardFXShaders {
 
     /// Effects a pack opening draws: compile these first.
     public static let packOpeningEffects: [CardEffect] = [
-        .starfield(), .nebula(palette: .violet), .foilWrap(), .glare(),
-        .sparks(origin: .zero, direction: CGPoint(x: 1, y: 0)), .burst(),
+        .starfield(), .nebula(palette: .violet), .foilWrap(), .glare(), .paper(),
+        .sparks(origin: .zero, direction: CGPoint(x: 1, y: 0)),
+        .paperTension(point: .zero, front: 0, direction: 1), .burst(),
     ]
 
     private static func compile(_ effects: [CardEffect], size: CGSize, parallel: Bool) async {
@@ -104,6 +107,16 @@ public enum CurlShader {
     /// capped by the strip height so the roll never dwarfs the band.
     public static func rollRadius(front: Double, stripHeight: Double) -> Double {
         min(max(stripHeight * 0.3, front / 4.5), stripHeight * 0.85)
+    }
+}
+
+/// Builder for the bag-mouth distortion (`ck_mouth`) of a torn pack body.
+public enum MouthShader {
+    public static func shader(size: CGSize, open: Double, lineY: Double, depth: Double) -> Shader {
+        Shader(
+            function: CardFXShaders.function("ck_mouth"),
+            arguments: [.float2(size), .float(open), .float(lineY), .float(depth)]
+        )
     }
 }
 

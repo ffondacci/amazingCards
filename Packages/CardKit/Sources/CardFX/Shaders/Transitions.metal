@@ -249,3 +249,19 @@ using namespace ckt;
     }
     return half4(0.0h);
 }
+
+/// Opening of a torn pack: within `depth` points below the torn edge at
+/// `lineY`, the body widens and its edge sags at the centre, like a bag
+/// whose mouth opens while the cards slide out. `open` 0…1.
+[[stitchable]] float2 ck_mouth(
+    float2 position,
+    float2 size, float open, float lineY, float depth
+) {
+    float t = 1.0 - clamp((position.y - lineY) / max(depth, 1.0), 0.0, 1.0);
+    if (t <= 0.0 || open <= 0.001) { return position; }
+    float cx = size.x * 0.5;
+    float nx = (position.x - cx) / max(cx, 1.0);
+    float widen = 1.0 - open * 0.07 * t * t;
+    float sag = open * 10.0 * t * t * (1.0 - nx * nx);
+    return float2(cx + (position.x - cx) * widen, position.y - sag);
+}

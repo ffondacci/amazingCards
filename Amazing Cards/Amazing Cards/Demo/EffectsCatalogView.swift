@@ -192,6 +192,10 @@ extension CardEffect {
         case .dissolve: self
         case .sparks(let origin, let direction, let tint, let intensity, let life):
             .sparks(origin: origin, direction: direction, tint: tint, intensity: intensity * factor, life: life)
+        case .paper(let bulge, let crimp, let intensity):
+            .paper(bulge: bulge, crimp: crimp, intensity: intensity * factor)
+        case .paperTension(let point, let front, let direction, let strength):
+            .paperTension(point: point, front: front, direction: direction, strength: strength * factor)
         }
     }
 }

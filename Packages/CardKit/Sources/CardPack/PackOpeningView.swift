@@ -19,16 +19,22 @@ public struct PackOpeningView: View {
     @State private var flightProgress: Double = 0
     /// The deck behind the pack stays invisible until the pack has settled.
     @State private var packSettled = false
+    @State private var sounds = PackSoundscape()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Plays the procedural wrapper sounds (crinkle, tear, whoosh).
+    public var playsSound: Bool
 
     public init(
         pack: BoosterPack,
         design: PackDesign,
         arrivesFrom: CGRect? = nil,
+        playsSound: Bool = true,
         onFinished: @escaping ([Card]) -> Void = { _ in }
     ) {
         self.design = design
         self.arrivesFrom = arrivesFrom
+        self.playsSound = playsSound
         self.onFinished = onFinished
         self._model = State(initialValue: PackOpeningModel(pack: pack))
     }
@@ -55,8 +61,15 @@ public struct PackOpeningView: View {
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .onChange(of: model.phase) { _, phase in
+            if phase == .torn { sounds.whoosh() }
             if phase == .finished { onFinished(model.revealed) }
         }
+        .task {
+            guard playsSound else { return }
+            await sounds.start()
+            sounds.crinkle(strength: 0.6)
+        }
+        .onDisappear { sounds.stop() }
         .task {
             var still = Transaction()
             still.disablesAnimations = true
@@ -142,6 +155,7 @@ public struct PackOpeningView: View {
         let phase = model.phase
         let gone = phase == .browsing || phase == .finished
         let bodyOffset: CGFloat = gone ? size.height * 0.9 : (phase == .emerging ? height * 0.42 : 0)
+        let sealed = phase == .sealed || phase == .torn
         return TornPackView(
             design: design,
             width: width,
@@ -150,7 +164,9 @@ public struct PackOpeningView: View {
             roughness: 5,
             flyAway: phase != .sealed,
             bodyOffsetY: bodyOffset,
-            bodyOpacity: gone ? 0 : 1
+            bodyOpacity: gone ? 0 : 1,
+            bulge: sealed ? 1 : 0,
+            mouthOpen: phase == .emerging ? 1 : (gone ? 0.6 : 0)
         )
         .background {
             // Static blurred shape instead of a content shadow: the pack is
@@ -173,7 +189,7 @@ public struct PackOpeningView: View {
         }
         .onTapGesture { if phase == .sealed { shakeCount += 1 } }
         .accessibilityAction(named: "Open the pack") { model.openImmediately() }
-        .background { TearHaptics(tear: model.tear) }
+        .background { TearFeedback(tear: model.tear, sounds: sounds) }
         .zIndex(gone ? 0 : 2)
     }
 
@@ -249,13 +265,46 @@ private struct PackFlight: ViewModifier, Animatable {
     }
 }
 
-/// Haptic ticks along the cut, isolated so only this view observes the
-/// tear progress (the rest of the screen is not re-evaluated per event).
-private struct TearHaptics: View {
+/// Haptic ticks and tearing sound along the cut, isolated so only this
+/// view observes the tear progress (the rest of the screen is not
+/// re-evaluated per event).
+private struct TearFeedback: View {
     let tear: TearState
+    let sounds: PackSoundscape
+
+    @State private var lastProgress: CGFloat = 0
+    @State private var lastTime: ContinuousClock.Instant = .now
 
     var body: some View {
         Color.clear
             .sensoryFeedback(.impact(flexibility: .rigid, intensity: 0.45), trigger: Int(tear.progress * 14))
+            .onChange(of: tear.isActive) { _, active in
+                if active {
+                    sounds.crinkle(strength: 0.9)
+                    lastProgress = tear.progress
+                    lastTime = .now
+                } else {
+                    sounds.tearing(speed: 0)
+                }
+            }
+            .onChange(of: tear.progress) { _, progress in
+                guard tear.isActive else { return }
+                let now = ContinuousClock.Instant.now
+                let seconds = max((now - lastTime).seconds, 0.004)
+                let speed = Double(abs(progress - lastProgress)) / seconds
+                lastProgress = progress
+                lastTime = now
+                sounds.tearing(speed: min(speed / 1.8, 1))
+            }
+            .task(id: tear.isActive) {
+                // While the finger pauses no progress arrives: fade the sound.
+                guard tear.isActive else { return }
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .milliseconds(90))
+                    if (ContinuousClock.Instant.now - lastTime).seconds > 0.12 {
+                        sounds.tearing(speed: 0)
+                    }
+                }
+            }
     }
 }

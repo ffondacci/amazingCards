@@ -9,9 +9,15 @@ import SwiftUI
 /// `PackOpeningView` adds the gesture.
 public struct BoosterPackView: View {
     public var design: PackDesign
+    /// How much the cards inside push the wrapper out, 0…1.
+    public var bulge: Double
+    /// Strength of the paper shading (folds, wrinkles, crimps); 0 = flat print.
+    public var paperIntensity: Double
 
-    public init(design: PackDesign) {
+    public init(design: PackDesign, bulge: Double = 1, paperIntensity: Double = 1) {
         self.design = design
+        self.bulge = bulge
+        self.paperIntensity = paperIntensity
     }
 
     public var body: some View {
@@ -90,6 +96,7 @@ public struct BoosterPackView: View {
                 }
             }
             .frame(width: w, height: h)
+            .cardEffect(.paper(bulge: bulge, crimp: h * 0.014, intensity: paperIntensity), isEnabled: paperIntensity > 0.01)
             .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: radius, style: .continuous)

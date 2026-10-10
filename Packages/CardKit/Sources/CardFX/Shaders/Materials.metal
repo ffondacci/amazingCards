@@ -232,8 +232,153 @@ using namespace ckm;
         glow += spark * 1.7;
     }
 
-    float a = clamp(glow * intensity, 0.0, 1.0);
-    float3 col = tint * glow + float3(1.0, 0.96, 0.85) * glow * glow * 0.5;
+    // Paper flecks: slow, fluttering, falling gently, living longer than sparks.
+    float paper = 0.0;
+    for (int i = 0; i < 8; ++i) {
+        float seed = 200.0 + float(i) * 5.17;
+        float span = lifetime * 2.2;
+        float t = fract(time / span + hash21(float2(seed, 1.0)));
+        float age = t * span;
+        float2 velocity = dir * (-20.0 - 50.0 * hash21(float2(seed, 2.0))) + perp * (hash21(float2(seed, 3.0)) - 0.5) * 90.0;
+        float2 pos = velocity * age + float2(0.0, 70.0 * age * age);
+        float2 q = p - pos;
+        q.x += sin(time * 9.0 + seed) * 2.0;
+        paper += exp(-dot(q, q) / 3.2) * (1.0 - t);
+    }
+
+    float a = clamp((glow + paper * 0.9) * intensity, 0.0, 1.0);
+    float3 col = tint * glow + float3(1.0, 0.96, 0.85) * glow * glow * 0.5 + float3(0.95, 0.93, 0.88) * paper * 0.9;
     col = clamp(col * intensity, 0.0, 1.0);
+    return half4(half3(col * a), half(a));
+}
+
+// MARK: - Paper
+
+namespace ckpaper {
+
+static inline float hash21(float2 p) {
+    float3 p3 = fract(float3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+static inline float vnoise(float2 p) {
+    float2 i = floor(p);
+    float2 f = fract(p);
+    float2 u = f * f * (3.0 - 2.0 * f);
+    float a = hash21(i);
+    float b = hash21(i + float2(1.0, 0.0));
+    float c = hash21(i + float2(0.0, 1.0));
+    float d = hash21(i + float2(1.0, 1.0));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+/// Thin ridges where a value noise crosses its midpoint: a cellular-looking
+/// wrinkle network for four hashes instead of a Voronoi search.
+static inline float ridges(float2 p) {
+    float r = 1.0 - abs(2.0 * vnoise(p) - 1.0);
+    return pow(r, 7.0);
+}
+
+/// Height of the wrapper surface at `p` (points): three long folds, fine
+/// wrinkles denser near the edges, crimp bumps in the sealed bands, and the
+/// pillow of the cards inside.
+static inline float height(float2 p, float2 size, float bulge, float crimp) {
+    float h = 0.0;
+    for (int i = 0; i < 3; ++i) {
+        float s = float(i) * 3.7 + 1.0;
+        float ang = hash21(float2(s, 2.0)) * 3.14159;
+        float2 dir = float2(cos(ang), sin(ang));
+        float2 through = float2(hash21(float2(s, 5.0)), hash21(float2(s, 9.0))) * size;
+        float d = abs(dot(p - through, float2(-dir.y, dir.x)));
+        float width = 2.5 + hash21(float2(s, 13.0)) * 2.5;
+        h -= (1.0 + hash21(float2(s, 17.0))) * max(0.0, 1.0 - d / width);
+    }
+    // Wrinkles: a sparse network, almost absent in the middle of the print
+    // and gathering near the edges and the sealed bands.
+    float edgeDist = min(min(p.x, size.x - p.x), min(p.y, size.y - p.y));
+    float edgeMask = 0.06 + 0.94 * (1.0 - smoothstep(0.0, 55.0, edgeDist));
+    h -= 0.7 * (ridges(p / 26.0) + 0.6 * ridges(p / 11.0 + 7.3)) * edgeMask;
+    float band = step(p.y, crimp) + step(size.y - crimp, p.y);
+    float tri = abs(fract(p.x / (size.x / 28.0)) - 0.5) * 2.0;
+    h += 1.6 * tri * band;
+    float2 c = p / size * 2.0 - 1.0;
+    float pillow = (1.0 - pow(abs(c.x), 2.6)) * (1.0 - pow(abs(c.y), 2.6));
+    h += bulge * 10.0 * pillow;
+    return h;
+}
+
+static inline float2 resolvePointer(float2 pointer, float2 tilt) {
+    float valid = step(0.0, pointer.x) * step(0.0, pointer.y);
+    float2 fallback = clamp(float2(0.5) + tilt * 0.5, 0.0, 1.0);
+    return mix(fallback, clamp(pointer, 0.0, 1.0), valid);
+}
+
+static inline float3 unpremul(half4 c) {
+    return c.a > 0.001h ? float3(c.rgb) / float(c.a) : float3(0.0);
+}
+
+static inline half4 premul(float3 rgb, half a) {
+    return half4(half3(clamp(rgb, 0.0, 1.0)) * a, a);
+}
+
+} // namespace ckpaper
+
+/// Lit paper wrapper: folds, wrinkles, crimps and the bulge of the cards
+/// inside, shaded by a light that follows the tilt / pointer.
+[[stitchable]] half4 ck_paper(
+    float2 position, half4 color,
+    float2 size, float2 tilt, float2 pointer, float time, float intensity, float bulge, float crimp
+) {
+    if (color.a < 0.004h) { return color; }
+    const float e = 1.0;
+    float h0 = ckpaper::height(position, size, bulge, crimp);
+    float hx = ckpaper::height(position + float2(e, 0.0), size, bulge, crimp);
+    float hy = ckpaper::height(position + float2(0.0, e), size, bulge, crimp);
+    float3 n = normalize(float3(-(hx - h0) / e * 1.4, -(hy - h0) / e * 1.4, 1.0));
+    float2 p = ckpaper::resolvePointer(pointer, tilt) - 0.5;
+    float3 L = normalize(float3(-0.35 + p.x * 1.2, -0.55 + p.y * 1.2, 0.9));
+    float diffuse = max(dot(n, L), 0.0);
+    float3 R = reflect(-L, n);
+    float spec = pow(max(R.z, 0.0), 32.0);
+    float3 src = ckpaper::unpremul(color);
+    float3 lit = src * (0.74 + 0.32 * diffuse) + spec * 0.28 * float3(1.0, 0.98, 0.92);
+    float3 result = mix(src, lit, clamp(intensity, 0.0, 1.0));
+    return ckpaper::premul(result, color.a);
+}
+
+/// Local paper tension drawn over a wrapper: a dent and radial wrinkles under
+/// the finger, ripples ahead of the cut. Generator: emits light and shade
+/// with alpha, composite it normally over the pack.
+[[stitchable]] half4 ck_paperTension(
+    float2 position, half4 color,
+    float2 size, float2 point, float front, float direction, float strength, float time
+) {
+    if (strength < 0.005) { return half4(0.0h); }
+    const float e = 1.0;
+    float h[4];
+    const float2 offsets[4] = { float2(e, 0.0), float2(-e, 0.0), float2(0.0, e), float2(0.0, -e) };
+    for (int k = 0; k < 4; ++k) {
+        float2 q = position + offsets[k];
+        float2 d = q - point;
+        float r = length(d);
+        float v = -strength * 9.0 * exp(-r * r / (2.0 * 20.0 * 20.0));
+        float ang = atan2(d.y, d.x);
+        v -= strength * 2.2 * exp(-r / 55.0) * pow(0.5 + 0.5 * sin(ang * 9.0 + 1.3), 5.0) * smoothstep(0.0, 12.0, r);
+        float ahead = (q.x - front) * direction;
+        float ripple = sin(ahead * 0.45 - time * 2.0) * exp(-max(ahead, 0.0) / 45.0) * step(0.0, ahead);
+        float band = exp(-pow((q.y - point.y) / 26.0, 2.0));
+        v -= strength * 2.4 * ripple * band;
+        h[k] = v;
+    }
+    float3 n = normalize(float3(-(h[0] - h[1]) / (2.0 * e) * 1.4, -(h[2] - h[3]) / (2.0 * e) * 1.4, 1.0));
+    float3 L = normalize(float3(-0.35, -0.55, 0.9));
+    float flat = L.z;
+    float diffuse = max(dot(n, L), 0.0);
+    float3 R = reflect(-L, n);
+    float spec = pow(max(R.z, 0.0), 32.0);
+    float delta = (diffuse - flat) * 0.9 + spec * 0.5;
+    float a = clamp(abs(delta), 0.0, 0.8);
+    float3 col = delta > 0.0 ? float3(1.0, 0.98, 0.9) : float3(0.0);
     return half4(half3(col * a), half(a));
 }

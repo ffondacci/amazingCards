@@ -20,6 +20,10 @@ struct TornPackView: View {
     /// Vertical offset and opacity of the body (used when the pack drops).
     let bodyOffsetY: CGFloat
     let bodyOpacity: Double
+    /// Bulge of the cards inside (1 sealed, 0 once they left).
+    var bulge: Double = 1
+    /// Opening of the torn body's mouth while the cards slide out, 0…1.
+    var mouthOpen: Double = 0
 
     /// Sparks intensity: 1 while tearing, fading to 0 after the break.
     @State private var sparkIntensity: Double = 0
@@ -48,8 +52,31 @@ struct TornPackView: View {
                 .mask {
                     TornPackMask(kind: .body, front: front, lineY: lineY, roughness: roughness, fromTrailing: fromTrailing)
                 }
+                .modifier(MouthEffectModifier(open: mouthOpen, lineY: lineY, depth: height * 0.3))
                 .offset(y: bodyOffsetY)
                 .opacity(bodyOpacity)
+
+            // Paper tension under the finger and ahead of the cut while
+            // tearing. Only a band around the cut: the dent and the ripples
+            // never reach farther, and the shader costs per pixel.
+            if tear.isActive, !flyAway {
+                let bandHeight = lineY + 110
+                Color.clear
+                    .frame(width: width, height: height)
+                    .overlay(alignment: .top) {
+                        Rectangle()
+                            .fill(.clear)
+                            .frame(width: width, height: bandHeight)
+                            .cardEffect(.paperTension(
+                                point: CGPoint(x: rollCenterX, y: lineY),
+                                front: rollCenterX,
+                                direction: fromTrailing ? -1 : 1,
+                                strength: 1
+                            ))
+                            .cardMotionIdle(animates: true)
+                    }
+                    .allowsHitTesting(false)
+            }
 
             // Shadow of the roll on the body, just under the cut.
             if front > 0.5, !flyAway {
@@ -145,7 +172,7 @@ struct TornPackView: View {
     /// curled on every drag event, and compositing a cached texture is
     /// far cheaper than re-rendering text, canvases and shaders.
     private var pack: some View {
-        BoosterPackView(design: design)
+        BoosterPackView(design: design, bulge: bulge)
             .frame(width: width, height: height)
             .cardMotionIdle(animates: false)
             .drawingGroup()
@@ -158,6 +185,28 @@ struct TornPackView: View {
                 Color(red: 0.97, green: 0.96, blue: 0.93).opacity(0.85),
                 style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round)
             )
+    }
+}
+
+/// Animatable bag-mouth distortion of the torn body.
+struct MouthEffectModifier: ViewModifier, Animatable {
+    nonisolated var open: Double
+    nonisolated var lineY: Double
+    nonisolated var depth: Double
+
+    nonisolated var animatableData: Double {
+        get { open }
+        set { open = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        content.visualEffect { [open, lineY, depth] view, proxy in
+            view.distortionEffect(
+                MouthShader.shader(size: proxy.size, open: open, lineY: lineY, depth: depth),
+                maxSampleOffset: CGSize(width: 24, height: 16),
+                isEnabled: open > 0.005
+            )
+        }
     }
 }
 
@@ -304,6 +353,33 @@ struct TornPackMask: Shape {
     return ZStack {
         Color(white: 0.08)
         TornPackView(design: design, width: width, height: height, tear: state, roughness: 5, flyAway: false, bodyOffsetY: 0, bodyOpacity: 1)
+    }
+    .frame(width: 420, height: 600)
+}
+
+#Preview("Mouth open, deflated") {
+    let design = PackDesign(
+        title: "Masterpieces",
+        subtitle: "Van Gogh",
+        setCode: "S1",
+        cover: .asset("starry_night"),
+        topColor: CardColor(hex: 0x1B2A6B),
+        bottomColor: CardColor(hex: 0x0B1030),
+        accent: .gold,
+        foilHue: 0.6,
+        emblemSymbol: "paintpalette.fill"
+    )
+    let state = TearState()
+    let width: CGFloat = 320
+    let height = width / PackDesign.aspectRatio
+    state.viewSize = CGSize(width: width, height: height)
+    state.origin = CGPoint(x: 0, y: height * 0.14)
+    state.tip = CGPoint(x: width, y: height * 0.14)
+    state.direction = CGPoint(x: 1, y: 0)
+    state.isTorn = true
+    return ZStack {
+        Color(white: 0.08)
+        TornPackView(design: design, width: width, height: height, tear: state, roughness: 5, flyAway: true, bodyOffsetY: 0, bodyOpacity: 1, bulge: 0, mouthOpen: 1)
     }
     .frame(width: 420, height: 600)
 }

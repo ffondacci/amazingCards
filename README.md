@@ -15,7 +15,7 @@ engineering guidelines.
 | `CardCore` | Pure models: `Card`, `CardContent` (creature / artist / painting / celestial), `Rarity`, `CardFinish`, `BoosterPack`, `BoosterGenerator`, `SeededRandomNumberGenerator`. No UI. |
 | `CardFX` | Metal shaders + SwiftUI modifiers: `CardEffect`, `HoloStyle`, `cardMotion(...)` (apply it *outside* the effects), `CardMotionStage`, `TiltTransform`, `DeviceMotionSource`, animatable `cardSweep` / `cardDissolve` / `cardRipple`, `renderScale(_:)` for cheap backgrounds, `CardFXShaders.warmUp(first:)`. |
 | `CardUI` | `CardView` (picks a template per content), `CardMetrics` (size-relative layout), `FinishRecipe`, `CardTheme`, `CardBackView`, `FlippableCardView`, `InteractiveCardView`, `CardFanView`, `ArtworkView` + `ArtworkLoader` actor, `cardIdleFloat`, `cardShake`, `.cardDissolve()` transition. |
-| `CardPack` | `PackDesign` (pocket-pack layout: top band, seam, full-bleed cover, bottom band), `BoosterPackView` (lit paper wrapper: folds, wrinkles, crimps, bulge), `PackCarouselView`, `tearable(...)` + `TearState` + `TornEdgeShape`, `TornPackView` (strip rolls up with `ck_curl`, sparks and paper flecks with `ck_sparks`, tension under the finger, bag mouth with `ck_mouth`), `CardSwipeStack`, `PackOpeningView` + `PackOpeningModel`, `PackSoundscape` (procedural crinkle, tear, whoosh), `PackWarmUpView`. |
+| `CardPack` | `PackDesign` (pocket-pack layout: top band, seam, full-bleed cover, bottom band), `BoosterPackView` (lit paper wrapper: folds, wrinkles, crimps, bulge), `PackCarouselView`, `tearable(...)` + `TearState` + `TornEdgeShape`, `TornPackView` (strip rolls up with `ck_curl`, sparks and paper flecks with `ck_sparks`, tension under the finger, bag mouth with `ck_mouth`), `CardSwipeStack`, `PackOpeningView` + `PackOpeningModel`, `PackSoundscape` + `PackSoundSet` (your own sound files for the tear), `PackWarmUpView`. |
 
 Dependency direction: `CardCore ← CardFX ← CardUI ← CardPack`.
 
@@ -76,8 +76,9 @@ top. The paper tenses under the finger and ripples ahead of the cut
 (`ck_paperTension`), and the torn body opens like a bag mouth while the cards
 slide out (`ck_mouth`). The facet model is adapted from Paper Design's
 paper-texture shader (Apache-2.0).
-`PackSoundscape` synthesizes the crinkle, the tearing (pitched by finger
-speed) and the whoosh in the audio render callback, with no audio files. One continuous deck then rises out
+`PackSoundscape` plays three optional sound files (`PackSoundSet`: crinkle
+on grab, a tearing loop whose volume follows the finger, a whoosh at the
+break); none are bundled, pass your own to `PackOpeningView(sounds:)`. One continuous deck then rises out
 of the pack, settles in the centre and flips its top card; every swipe flips
 the next one. The pack itself flies from the frame it was tapped in
 (`arrivesFrom`, reported by `PackCarouselView`). Foil cards react to the finger, rare pulls get a burst behind them.

@@ -19,24 +19,25 @@ public struct PackOpeningView: View {
     @State private var flightProgress: Double = 0
     /// The deck behind the pack stays invisible until the pack has settled.
     @State private var packSettled = false
-    @State private var sounds = PackSoundscape()
+    @State private var sounds: PackSoundscape
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Plays the procedural wrapper sounds (crinkle, tear, whoosh).
-    public var playsSound: Bool
+    /// Sound files for the tear (crinkle, tearing loop, whoosh); nil = silent.
+    public var soundSet: PackSoundSet?
 
     public init(
         pack: BoosterPack,
         design: PackDesign,
         arrivesFrom: CGRect? = nil,
-        playsSound: Bool = true,
+        sounds: PackSoundSet? = nil,
         onFinished: @escaping ([Card]) -> Void = { _ in }
     ) {
         self.design = design
         self.arrivesFrom = arrivesFrom
-        self.playsSound = playsSound
+        self.soundSet = sounds
         self.onFinished = onFinished
         self._model = State(initialValue: PackOpeningModel(pack: pack))
+        self._sounds = State(initialValue: PackSoundscape(soundSet: sounds))
     }
 
     public var body: some View {
@@ -65,8 +66,7 @@ public struct PackOpeningView: View {
             if phase == .finished { onFinished(model.revealed) }
         }
         .task {
-            // The engine starts silently; sounds only play while tearing.
-            guard playsSound else { return }
+            // Loads the sound files, if any; they only play while tearing.
             await sounds.start()
         }
         .onDisappear { sounds.stop() }

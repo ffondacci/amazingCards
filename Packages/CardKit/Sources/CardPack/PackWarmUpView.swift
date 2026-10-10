@@ -30,8 +30,7 @@ public struct PackWarmUpView: View {
             ZStack {
                 PackOpeningView(
                     pack: BoosterPack(name: "warm-up", cards: Array(sampleCards.prefix(3))),
-                    design: design,
-                    playsSound: false
+                    design: design
                 )
                 TornPackView(
                     design: design,

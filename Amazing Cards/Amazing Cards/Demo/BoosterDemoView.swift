@@ -15,6 +15,7 @@ struct BoosterDemoView: View {
     @State private var designIndex = 0
     @State private var seed: UInt64 = 1
     @State private var opened: [Card] = []
+    @Namespace private var packSpace
 
     static let designs: [PackDesign] = [
         PackDesign(
@@ -60,16 +61,20 @@ struct BoosterDemoView: View {
                 switch stage {
                 case .choosing:
                     chooser
-                        .transition(.opacity)
+                        .transition(.opacity.animation(.easeOut(duration: 0.18)))
                 case .opening(let pack):
-                    PackOpeningView(pack: pack, design: design) { cards in
+                    PackOpeningView(
+                        pack: pack,
+                        design: design,
+                        packTransition: (PackCarouselView.packID(designIndex), packSpace)
+                    ) { cards in
                         opened.append(contentsOf: cards)
                     }
                     .id(pack.id)
-                    .transition(.opacity)
+                    .transition(.identity)
                 }
             }
-            .animation(.easeInOut(duration: 0.35), value: stage)
+            .animation(.spring(response: 0.7, dampingFraction: 0.82), value: stage)
             .toolbar {
                 if case .opening = stage {
                     ToolbarItem(placement: .topBarLeading) {
@@ -108,7 +113,7 @@ struct BoosterDemoView: View {
                 Text("\(design.cardCount) cards · tap the pack to open it")
                     .font(.footnote)
                     .foregroundStyle(.white.opacity(0.7))
-                PackCarouselView(designs: Self.designs, selection: $designIndex) { index in
+                PackCarouselView(designs: Self.designs, selection: $designIndex, packNamespace: packSpace) { index in
                     designIndex = index
                     stage = .opening(newPack())
                 }

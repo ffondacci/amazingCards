@@ -9,13 +9,25 @@ import SwiftUI
 public struct PackOpeningView: View {
     public var design: PackDesign
     public var onFinished: ([Card]) -> Void
+    /// Pair with a `matchedGeometryEffect` on the pack shown elsewhere (a
+    /// carousel, a shop) so the pack travels to the centre when opened.
+    public var packTransition: (id: AnyHashable, namespace: Namespace.ID)?
 
     @State private var model: PackOpeningModel
     @State private var shakeCount = 0
+    /// False while the pack travels from where it was tapped; the deck
+    /// behind it is kept invisible until the pack has settled.
+    @State private var packSettled = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    public init(pack: BoosterPack, design: PackDesign, onFinished: @escaping ([Card]) -> Void = { _ in }) {
+    public init(
+        pack: BoosterPack,
+        design: PackDesign,
+        packTransition: (id: AnyHashable, namespace: Namespace.ID)? = nil,
+        onFinished: @escaping ([Card]) -> Void = { _ in }
+    ) {
         self.design = design
+        self.packTransition = packTransition
         self.onFinished = onFinished
         self._model = State(initialValue: PackOpeningModel(pack: pack))
     }
@@ -36,6 +48,11 @@ public struct PackOpeningView: View {
         }
         .onChange(of: model.phase) { _, phase in
             if phase == .finished { onFinished(model.revealed) }
+        }
+        .task {
+            // Matched-geometry arrival of the pack takes about half a second.
+            try? await Task.sleep(for: .milliseconds(packTransition == nil ? 0 : 550))
+            packSettled = true
         }
         .onDisappear { model.cancel() }
         .sensoryFeedback(.success, trigger: model.phase == .torn)
@@ -61,42 +78,33 @@ public struct PackOpeningView: View {
         .ignoresSafeArea()
     }
 
+    /// One stack for the whole flow: hidden inside the pack, rising out of
+    /// it, then centred and flipping card by card. No view is swapped, so
+    /// nothing flashes between phases.
     private func cardsLayer(cardWidth: CGFloat, packHeight: CGFloat, size: CGSize) -> some View {
         let phase = model.phase
         let insidePack = phase == .sealed || phase == .torn
-        let stackOffset: CGFloat = insidePack ? 0 : -packHeight * 0.36
-        return ZStack {
-            if phase != .browsing && phase != .finished {
-                ZStack {
-                    ForEach(Array(model.pack.cards.prefix(5).enumerated()), id: \.element.id) { index, _ in
-                        CardBackView()
-                            .frame(width: cardWidth * 0.9)
-                            .rotationEffect(.degrees(Double(index - 2) * (phase == .emerging ? 4 : 0)))
-                            .offset(y: CGFloat(index) * (phase == .emerging ? -6 : 0))
-                            .shadow(color: .black.opacity(0.35), radius: 8, y: 4)
-                            .animation(
-                                .spring(response: 0.7, dampingFraction: 0.75).delay(Double(index) * 0.07),
-                                value: phase
-                            )
-                    }
-                }
-                .offset(y: stackOffset)
-                .scaleEffect(insidePack ? 0.9 : 1)
-                .animation(.spring(response: 0.8, dampingFraction: 0.78), value: phase)
-                .transition(.opacity)
+        let emerging = phase == .emerging
+        let revealed = phase == .browsing || phase == .finished
+        let offset: CGFloat = insidePack ? 0 : (emerging ? -packHeight * 0.36 : 0)
+        return VStack(spacing: 16) {
+            CardSwipeStack(
+                cards: model.pack.cards,
+                index: $model.topIndex,
+                revealsFaces: revealed,
+                deckStyle: true
+            ) { card, _ in
+                model.cardSwiped(card)
             }
-            if phase == .browsing || phase == .finished {
-                VStack(spacing: 16) {
-                    CardSwipeStack(cards: model.pack.cards, index: $model.topIndex) { card, _ in
-                        model.cardSwiped(card)
-                    }
-                    .frame(width: cardWidth)
-                    .transition(.scale(scale: 0.8).combined(with: .opacity))
-                    if phase == .finished {
-                        summary
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
-                }
+            .frame(width: cardWidth)
+            .scaleEffect(insidePack ? 0.9 : 1)
+            .offset(y: offset)
+            .opacity(packSettled ? 1 : 0)
+            .animation(.spring(response: 0.8, dampingFraction: 0.78), value: phase)
+            .allowsHitTesting(revealed)
+            if phase == .finished {
+                summary
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(.spring(response: 0.6, dampingFraction: 0.8), value: phase)
@@ -116,6 +124,7 @@ public struct PackOpeningView: View {
             bodyOffsetY: bodyOffset,
             bodyOpacity: gone ? 0 : 1
         )
+        .modifier(MatchedPack(transition: packTransition, isActive: phase == .sealed))
         .animation(.spring(response: 0.75, dampingFraction: 0.85), value: phase)
         .cardShake(trigger: shakeCount, amplitude: 8)
         .tearable(
@@ -174,5 +183,19 @@ public struct PackOpeningView: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white.opacity(0.12)))
+    }
+}
+
+/// Applies the optional matched geometry of the pack.
+private struct MatchedPack: ViewModifier {
+    let transition: (id: AnyHashable, namespace: Namespace.ID)?
+    let isActive: Bool
+
+    func body(content: Content) -> some View {
+        if let transition {
+            content.matchedGeometryEffect(id: transition.id, in: transition.namespace, isSource: isActive)
+        } else {
+            content
+        }
     }
 }

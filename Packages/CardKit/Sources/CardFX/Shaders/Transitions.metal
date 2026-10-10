@@ -175,57 +175,77 @@ using namespace ckt;
     return position + direction * wave;
 }
 
-/// Progressive curl of a torn strip. The strip occupies y ∈ [0, lineY] of the
-/// layer. Columns left of `front` (or right of it when `fromTrailing`) are
-/// torn: their bottom edge (the cut) rolls up around a horizontal cylinder of
-/// `radius`, by an arc that grows with the distance from the finger up to
-/// `rollMax`. The rolled part shows the printed face, then the inner foil
-/// face past a quarter turn. A soft shadow is drawn where the strip lifted.
+/// Torn strip rolling up like a scroll that travels with the finger.
+///
+/// The strip occupies y ∈ [0, lineY + edgeAllowance] of the layer. Columns
+/// closer to the start edge than `front` are torn. The torn paper wraps
+/// around a vertical cylinder of `radius` whose axis stands at the tear
+/// front, curling toward the viewer, so the near side of the roll shows the
+/// inner foil face (mirrored print). Several turns stack when the rolled
+/// length exceeds the circumference. The uncut band ahead of the roll is
+/// left flat with a contact shadow; the region behind the roll is empty.
 [[stitchable]] half4 ck_curl(
     float2 position, SwiftUI::Layer layer,
-    float2 size, float lineY, float front, float fromTrailing, float radius, float rollMax
+    float2 size, float lineY, float front, float fromTrailing, float radius, float edgeAllowance
 ) {
-    float u = fromTrailing > 0.5 ? (size.x - position.x) : position.x;
-    float torn = front - u;
-    if (torn <= 0.0 || position.y > lineY + 2.0) { return layer.sample(position); }
-    float k = smoothstep(0.0, max(front * 0.75, 30.0), torn);
-    float r = rollMax * k;
-    if (r < 0.5) { return layer.sample(position); }
+    bool trailing = fromTrailing > 0.5;
+    if (front < 1.0 || position.y > lineY + edgeAllowance) { return layer.sample(position); }
+    float u = trailing ? (size.x - position.x) : position.x;
+    float R = max(radius, 2.0);
+    float rollLeft = front - R;
+    float rollRight = front + R;
 
-    float h = lineY - position.y;
-    if (h < 0.0) { return layer.sample(position); }
-    // Under the lifted edge: nothing but the shadow of the roll.
-    if (h < r) {
-        float shadow = 0.38 * smoothstep(r - 22.0, r, h) * smoothstep(0.0, 6.0, h);
-        return half4(0.0h, 0.0h, 0.0h, half(shadow));
+    if (u >= rollRight) {
+        // Uncut band ahead of the roll, flat, with the shadow of the roll.
+        half4 s = layer.sample(position);
+        float3 rgb = unpremul(s);
+        rgb *= 1.0 - 0.35 * smoothstep(rollRight + 14.0, rollRight, u);
+        return premul(rgb, s.a);
     }
-    float R = max(radius, 1.0);
-    float c = 1.0 - (h - r) / R;
-    if (c >= -1.0 && c <= 1.0) {
-        float phi = acos(c);
-        float v = r - R * phi;
-        if (v >= 0.0) {
-            half4 s = layer.sample(float2(position.x, lineY - v));
-            if (s.a > 0.01h) {
-                float3 rgb = unpremul(s);
-                if (phi <= M_PI_F * 0.5) {
-                    float rim = pow(max(0.0, sin(phi * 2.0)), 3.0);
-                    rgb *= 0.55 + 0.45 * c;
-                    rgb += rim * 0.35;
-                } else {
-                    float g = dot(rgb, float3(0.3, 0.59, 0.11));
-                    float3 silver = float3(0.80, 0.82, 0.87) * (0.55 + 0.45 * (-c));
-                    rgb = mix(silver, float3(g), 0.22);
-                    rgb += 0.18 * pow(max(0.0, -c), 4.0);
-                }
-                return premul(rgb, s.a);
+    if (u < rollLeft) { return half4(0.0h); }
+
+    float t = clamp((u - front) / R, -1.0, 1.0);
+    float turn = 2.0 * M_PI_F * R;
+
+    // Near side of the roll (toward the viewer): inner face of the paper.
+    float thetaNear = M_PI_F - asin(t);
+    float sNear = R * thetaNear;
+    if (sNear <= front) {
+        sNear += floor((front - sNear) / turn) * turn;
+        float uSrc = front - sNear;
+        float xSrc = trailing ? (size.x - uSrc) : uSrc;
+        half4 c = layer.sample(float2(xSrc, position.y));
+        if (c.a > 0.01h) {
+            float3 rgb = unpremul(c);
+            float facing = -cos(thetaNear);                       // 1 at the crest
+            float shade = 0.30 + 0.70 * facing;                   // cylinder lighting
+            float3 inner = mix(float3(0.84, 0.86, 0.90), rgb, 0.45);  // foil showing the print through
+            rgb = inner * shade;
+            rgb += float3(0.95, 0.97, 1.0) * 0.30 * pow(max(0.0, facing), 10.0);  // specular stripe
+            rgb += float3(1.0) * 0.10 * pow(max(0.0, 1.0 - abs(t)), 0.5) * (1.0 - facing); // soft rim
+            return premul(rgb, c.a);
+        }
+    }
+    // Far side (paper rising from the band), printed face, seen when the
+    // roll has not yet covered this column.
+    if (t >= 0.0) {
+        float thetaFar = asin(t);
+        float sFar = R * thetaFar;
+        if (sFar <= front) {
+            float uSrc = front - sFar;
+            float xSrc = trailing ? (size.x - uSrc) : uSrc;
+            half4 c = layer.sample(float2(xSrc, position.y));
+            if (c.a > 0.01h) {
+                float3 rgb = unpremul(c) * (0.55 + 0.45 * cos(thetaFar));
+                return premul(rgb, c.a);
             }
         }
     }
-    // Flat paper above the roll, with a contact shadow next to it.
-    half4 s = layer.sample(position);
-    float3 rgb = unpremul(s);
-    float top = r + R * 2.0;
-    rgb *= 1.0 - 0.28 * smoothstep(top + 18.0, top, h) * step(top, h);
-    return premul(rgb, s.a);
+    if (u >= front) {
+        // Uncut band under the roll zone.
+        half4 s = layer.sample(position);
+        float3 rgb = unpremul(s) * 0.62;
+        return premul(rgb, s.a);
+    }
+    return half4(0.0h);
 }

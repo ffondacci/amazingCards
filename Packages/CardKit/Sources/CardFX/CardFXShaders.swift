@@ -45,36 +45,42 @@ public enum CardFXShaders {
                     .compile(as: .layerEffect)
             }
             group.addTask {
-                try? await CurlShader.shader(size: size, lineY: 60, front: 100, fromTrailing: false, radius: 20, rollMax: 50)
+                try? await CurlShader.shader(size: size, lineY: 60, front: 100, fromTrailing: false, radius: 20, edgeAllowance: 8)
                     .compile(as: .layerEffect)
             }
         }
     }
 }
 
-/// Builder for the progressive strip curl (`ck_curl`), used by `CardPack`.
+/// Builder for the scroll roll of a torn strip (`ck_curl`), used by `CardPack`.
 public enum CurlShader {
     /// - Parameters:
     ///   - lineY: y of the cut in the layer; the strip is above it.
     ///   - front: torn length from the start edge, in points.
     ///   - fromTrailing: true when the tear started on the trailing edge.
-    ///   - radius: radius of the roll, in points.
-    ///   - rollMax: arc length rolled at the far end, in points.
+    ///   - radius: radius of the roll, in points (see `rollRadius`).
+    ///   - edgeAllowance: how far below `lineY` the jagged edge may reach.
     public static func shader(
         size: CGSize,
         lineY: Double,
         front: Double,
         fromTrailing: Bool,
         radius: Double,
-        rollMax: Double
+        edgeAllowance: Double
     ) -> Shader {
         Shader(
             function: CardFXShaders.function("ck_curl"),
             arguments: [
                 .float2(size), .float(lineY), .float(front),
-                .float(fromTrailing ? 1 : 0), .float(radius), .float(rollMax),
+                .float(fromTrailing ? 1 : 0), .float(radius), .float(edgeAllowance),
             ]
         )
+    }
+
+    /// Radius of a loosely rolled strip after `front` points have been torn,
+    /// capped by the strip height so the roll never dwarfs the band.
+    public static func rollRadius(front: Double, stripHeight: Double) -> Double {
+        min(max(stripHeight * 0.3, front / 4.5), stripHeight * 0.85)
     }
 }
 

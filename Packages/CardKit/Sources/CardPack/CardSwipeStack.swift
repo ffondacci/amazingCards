@@ -14,23 +14,32 @@ public struct CardSwipeStack: View {
     public var cards: [Card]
     @Binding public var index: Int
     public var visibleDepth: Int
+    /// When false every card shows its back (a sealed deck). When true the
+    /// top card flips face up, and so does each next card as it comes up.
+    public var revealsFaces: Bool
+    /// Cards under the top one show their backs (a deck) instead of faces.
+    public var deckStyle: Bool
     public var onSwipe: (Card, SwipeDirection) -> Void
 
     @State private var drag: CGSize = .zero
     @State private var pointer: CGPoint?
     @State private var isDragging = false
     @State private var size: CGSize = .zero
-    @State private var leaving: (id: CardID, direction: SwipeDirection)?
+    @State private var topIsFaceUp = false
 
     public init(
         cards: [Card],
         index: Binding<Int>,
         visibleDepth: Int = 3,
+        revealsFaces: Bool = true,
+        deckStyle: Bool = false,
         onSwipe: @escaping (Card, SwipeDirection) -> Void = { _, _ in }
     ) {
         self.cards = cards
         self._index = index
         self.visibleDepth = visibleDepth
+        self.revealsFaces = revealsFaces
+        self.deckStyle = deckStyle
         self.onSwipe = onSwipe
     }
 
@@ -44,7 +53,12 @@ public struct CardSwipeStack: View {
         ZStack {
             ForEach(visible.reversed(), id: \.card.id) { position, card in
                 let isTop = position == 0
-                CardView(card: card, showsFinish: position < 2)
+                let faceUp = isTop ? (revealsFaces && topIsFaceUp) : !deckStyle
+                FlipContainer(isFaceUp: faceUp) {
+                    CardView(card: card, showsFinish: position < 2)
+                } back: {
+                    CardBackView()
+                }
                     .cardMotion(
                         tilt: isTop ? topTilt : .zero,
                         pointer: isTop ? pointer : nil,
@@ -63,7 +77,18 @@ public struct CardSwipeStack: View {
             }
         }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size = $0 }
-        .gesture(dragGesture)
+        .gesture(dragGesture, including: revealsFaces ? .all : .subviews)
+        .task(id: RevealKey(index: index, reveals: revealsFaces)) {
+            // Each card that comes on top flips face up after a short beat,
+            // cancelled automatically if the stack moves on or disappears.
+            guard revealsFaces else {
+                topIsFaceUp = false
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(index == 0 ? 220 : 120))
+            guard !Task.isCancelled else { return }
+            withAnimation(.cardFlip) { topIsFaceUp = true }
+        }
         .sensoryFeedback(.impact(weight: .medium), trigger: index)
         .accessibilityElement(children: .contain)
     }
@@ -128,8 +153,14 @@ public struct CardSwipeStack: View {
             transaction.disablesAnimations = true
             withTransaction(transaction) {
                 drag = .zero
+                topIsFaceUp = false
             }
             index += 1
         }
+    }
+
+    private struct RevealKey: Hashable {
+        var index: Int
+        var reveals: Bool
     }
 }

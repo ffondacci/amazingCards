@@ -33,10 +33,10 @@ struct TornPackView: View {
     private var progress: CGFloat { width > 0 ? min(front / width, 1) : 0 }
 
     var body: some View {
-        let front = front
+        let front = flyAway ? width : front
         let progress = progress
-        let radius = lineY * 0.34
-        let rollMax = radius * .pi * 0.96
+        let radius = CurlShader.rollRadius(front: Double(front), stripHeight: Double(lineY))
+        let rollCenterX = fromTrailing ? width - front : front
 
         ZStack {
             // Body and attached strip.
@@ -45,38 +45,40 @@ struct TornPackView: View {
                 .mask {
                     TornPackMask(kind: .body, front: front, lineY: lineY, roughness: roughness, fromTrailing: fromTrailing)
                 }
-                .overlay {
-                    // Shadow of the lifted strip on the body.
-                    TornPackMask(kind: .shadow, front: front, lineY: lineY, roughness: roughness, fromTrailing: fromTrailing)
-                        .fill(.black.opacity(0.45 * min(1, Double(progress) * 3)))
-                        .blur(radius: 6)
-                        .mask {
-                            TornPackMask(kind: .body, front: front, lineY: lineY, roughness: roughness, fromTrailing: fromTrailing)
-                        }
-                }
                 .offset(y: bodyOffsetY)
                 .opacity(bodyOpacity)
 
-            // Torn part of the strip, curling up from the cut as the finger advances.
+            // Shadow of the roll on the body, just under the cut.
+            if front > 0.5, !flyAway {
+                Ellipse()
+                    .fill(.black.opacity(0.45))
+                    .frame(width: radius * 2.6, height: 14)
+                    .blur(radius: 6)
+                    .position(x: rollCenterX, y: lineY + 4)
+                    .opacity(min(1, Double(progress) * 4))
+                    .allowsHitTesting(false)
+            }
+
+            // Torn strip rolling up at the finger.
             if front > 0.5 {
                 pack
                     .overlay { fibreRim(front: front) }
                     .mask {
-                        TornPackMask(kind: .strip, front: flyAway ? width : front, lineY: lineY, roughness: roughness, fromTrailing: fromTrailing)
+                        TornPackMask(kind: .strip, front: front, lineY: lineY, roughness: roughness, fromTrailing: fromTrailing)
                     }
                     .modifier(
                         CurlEffectModifier(
                             lineY: lineY,
-                            front: flyAway ? width * 1.4 : front,
+                            front: front,
                             fromTrailing: fromTrailing,
                             radius: radius,
-                            rollMax: rollMax
+                            edgeAllowance: roughness * 1.6
                         )
                     )
-                    .rotationEffect(.degrees(flyAway ? (fromTrailing ? 12 : -12) : 0), anchor: .top)
+                    .rotationEffect(.degrees(flyAway ? (fromTrailing ? -28 : 28) : 0), anchor: .top)
                     .offset(
-                        x: flyAway ? (fromTrailing ? width * 0.4 : -width * 0.4) : 0,
-                        y: flyAway ? -height * 0.45 : 0
+                        x: flyAway ? (fromTrailing ? -width * 0.6 : width * 0.6) : 0,
+                        y: flyAway ? -height * 0.5 : 0
                     )
                     .opacity(flyAway ? 0 : 1)
                     .animation(.easeIn(duration: 0.6), value: flyAway)
@@ -96,10 +98,9 @@ struct TornPackView: View {
     private func fibreRim(front: CGFloat) -> some View {
         TornPackMask(kind: .edge, front: front, lineY: lineY, roughness: roughness, fromTrailing: fromTrailing)
             .stroke(
-                Color(red: 0.97, green: 0.96, blue: 0.93).opacity(0.9),
-                style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round)
+                Color(red: 0.97, green: 0.96, blue: 0.93).opacity(0.85),
+                style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round)
             )
-            .blur(radius: 0.4)
     }
 }
 
@@ -109,18 +110,18 @@ struct CurlEffectModifier: ViewModifier, Animatable {
     nonisolated var front: Double
     nonisolated var fromTrailing: Bool
     nonisolated var radius: Double
-    nonisolated var rollMax: Double
+    nonisolated var edgeAllowance: Double
 
     nonisolated var animatableData: AnimatablePair<Double, Double> {
-        get { AnimatablePair(front, rollMax) }
+        get { AnimatablePair(front, radius) }
         set {
             front = newValue.first
-            rollMax = newValue.second
+            radius = newValue.second
         }
     }
 
     func body(content: Content) -> some View {
-        content.visualEffect { [lineY, front, fromTrailing, radius, rollMax] view, proxy in
+        content.visualEffect { [lineY, front, fromTrailing, radius, edgeAllowance] view, proxy in
             view.layerEffect(
                 CurlShader.shader(
                     size: proxy.size,
@@ -128,9 +129,9 @@ struct CurlEffectModifier: ViewModifier, Animatable {
                     front: front,
                     fromTrailing: fromTrailing,
                     radius: radius,
-                    rollMax: rollMax
+                    edgeAllowance: edgeAllowance
                 ),
-                maxSampleOffset: CGSize(width: 0, height: lineY),
+                maxSampleOffset: CGSize(width: proxy.size.width, height: 0),
                 isEnabled: front > 0.5
             )
         }
@@ -202,8 +203,11 @@ struct TornPackMask: Shape {
             path.addLine(to: CGPoint(x: startX, y: first.y))
             path.closeSubpath()
         case .strip:
+            let farX = fromTrailing ? rect.minX : rect.maxX
             path.move(to: CGPoint(x: startX, y: rect.minY))
-            path.addLine(to: CGPoint(x: last.x, y: rect.minY))
+            path.addLine(to: CGPoint(x: farX, y: rect.minY))
+            path.addLine(to: CGPoint(x: farX, y: lineY + rect.minY))
+            path.addLine(to: CGPoint(x: last.x, y: lineY + rect.minY))
             for point in cut.reversed() { path.addLine(to: point) }
             path.closeSubpath()
         case .edge:

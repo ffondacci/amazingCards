@@ -59,9 +59,12 @@ paper, corner radius, typography and the card back.
 `PackCarouselView` presents sealed packs; the centred one opens.
 `PackOpeningView(pack:design:)`: tear the top band (drag from an edge). The
 pack is rendered as real pieces while tearing (`TornPackView`): the torn part
-of the band curls up from the cut, more and more away from the finger, showing
-its inner foil face with a fibrous edge and a cast shadow (`ck_curl`), then
-flies off; cards slide out of the pack, then you swipe through them. Foil cards react to the finger, rare pulls get a burst behind them.
+of the band rolls up into a scroll that travels with the finger (`ck_curl`,
+inner foil face with the mirrored print, cylinder shading, cast shadow) and
+flies off at the break. One continuous deck then rises out of the pack,
+settles in the centre and flips its top card; every swipe flips the next
+one. The pack itself travels from where it was tapped (`packTransition`,
+matched geometry with `PackCarouselView`). Foil cards react to the finger, rare pulls get a burst behind them.
 Packs share the card ratio, so nothing shows until the pack opens.
 `PackDesign` changes the wrapper (colours, foil hue, cover, emblem). The
 generic `tearable` modifier (any view, any direction) uses the `ck_tear`

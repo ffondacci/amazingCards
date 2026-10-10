@@ -13,9 +13,9 @@ engineering guidelines.
 | Product | What it contains |
 |---|---|
 | `CardCore` | Pure models: `Card`, `CardContent` (creature / artist / painting / celestial), `Rarity`, `CardFinish`, `BoosterPack`, `BoosterGenerator`, `SeededRandomNumberGenerator`. No UI. |
-| `CardFX` | Metal shaders + SwiftUI modifiers: `CardEffect`, `HoloStyle`, `cardMotion(...)`, `CardMotionStage`, `TiltTransform`, `DeviceMotionSource`, animatable `cardSweep` / `cardDissolve` / `cardRipple`, `CardFXShaders.warmUp()`. |
+| `CardFX` | Metal shaders + SwiftUI modifiers: `CardEffect`, `HoloStyle`, `cardMotion(...)` (apply it *outside* the effects), `CardMotionStage`, `TiltTransform`, `DeviceMotionSource`, animatable `cardSweep` / `cardDissolve` / `cardRipple`, `renderScale(_:)` for cheap backgrounds, `CardFXShaders.warmUp(first:)`. |
 | `CardUI` | `CardView` (picks a template per content), `CardMetrics` (size-relative layout), `FinishRecipe`, `CardTheme`, `CardBackView`, `FlippableCardView`, `InteractiveCardView`, `CardFanView`, `ArtworkView` + `ArtworkLoader` actor, `cardIdleFloat`, `cardShake`, `.cardDissolve()` transition. |
-| `CardPack` | `PackDesign` (pocket-pack layout: top band, seam, full-bleed cover, bottom band), `BoosterPackView`, `PackCarouselView`, `tearable(...)` + `TearState` + `TornEdgeShape`, `TornPackView` (strip curls progressively with `ck_curl`), `CardSwipeStack`, `PackOpeningView` + `PackOpeningModel`. |
+| `CardPack` | `PackDesign` (pocket-pack layout: top band, seam, full-bleed cover, bottom band), `BoosterPackView`, `PackCarouselView`, `tearable(...)` + `TearState` + `TornEdgeShape`, `TornPackView` (strip rolls up with `ck_curl`, sparks with `ck_sparks`), `CardSwipeStack`, `PackOpeningView` + `PackOpeningModel`, `PackWarmUpView`. |
 
 Dependency direction: `CardCore ← CardFX ← CardUI ← CardPack`.
 
@@ -80,7 +80,21 @@ xcodebuild -project "Amazing Cards/Amazing Cards.xcodeproj" -scheme "Amazing Car
 ```
 
 The demo accepts `-demoRoute collection|effects|animations|booster` to open a
-screen directly.
+screen directly, and `-showFPS YES` to overlay a display-link frame counter
+(current rate and the worst half-second of the last three seconds).
+
+## Performance notes
+
+- Motion providers go outside the effects: `view.cardEffect(…).cardMotion(…)`.
+  An effect applied outside its provider reads a frozen clock.
+- Backgrounds (star field, nebula) render at half resolution with
+  `renderScale(0.5)` and tick at 30 fps; the pack is rasterized once with
+  `drawingGroup()` because every drag event re-masks it.
+- Artwork decodes off the main actor through `ArtworkLoader`, downsampled,
+  for catalog assets as well as URLs; call `prewarm(assets:)` at launch.
+- `CardFXShaders.warmUp(first:)` compiles the effects of the first screen in
+  parallel, then the rest one at a time at utility priority; show
+  `PackWarmUpView` once at launch so the first opening is smooth.
 
 ## Credits
 

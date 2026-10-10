@@ -21,32 +21,55 @@ public enum CardFXShaders {
     }
 
     /// Compiles every shader ahead of time so the first card drawn does not
-    /// hitch. Safe to call several times; errors are swallowed because a
-    /// failed pre-compilation only costs the hitch it tried to avoid.
-    public static func warmUp() async {
-        let idle = CardMotion()
+    /// hitch. `first` is compiled before the rest (the effects of the screen
+    /// the user reaches first, typically a pack opening). Safe to call
+    /// several times; errors are swallowed because a failed pre-compilation
+    /// only costs the hitch it tried to avoid.
+    public static func warmUp(first: [CardEffect] = []) async {
         let size = CGSize(width: 300, height: 420)
-        await withTaskGroup(of: Void.self) { group in
-            for effect in CardEffect.showcase {
-                group.addTask {
-                    let shader = effect.shader(motion: idle, size: size)
-                    switch effect.kind {
-                    case .color: try? await shader.compile(as: .colorEffect)
-                    case .layer: try? await shader.compile(as: .layerEffect)
-                    }
+        // The first set compiles in parallel, then the geometry shaders.
+        await compile(first, size: size, parallel: true)
+        try? await CurlShader.shader(size: size, lineY: 60, front: 100, fromTrailing: false, radius: 20, edgeAllowance: 8)
+            .compile(as: .layerEffect)
+        try? await TearShader.shader(size: size, origin: .zero, tip: .zero, gap: 0, roughness: 0, lift: 0)
+            .compile(as: .layerEffect)
+        // The rest compiles one at a time at low priority: a burst of
+        // parallel Metal compilations starves the main thread and shows as
+        // dropped frames in whatever the user does meanwhile.
+        let rest = CardEffect.showcase.filter { !first.contains($0) }
+        await Task(priority: .utility) {
+            await compile(rest, size: size, parallel: false)
+            try? await CardRippleModifier.shader(size: size, center: .zero, elapsed: 0, amplitude: 1, frequency: 1)
+                .compile(as: .distortionEffect)
+        }.value
+    }
+
+    /// Effects a pack opening draws: compile these first.
+    public static let packOpeningEffects: [CardEffect] = [
+        .starfield(), .nebula(palette: .violet), .foilWrap(), .glare(),
+        .sparks(origin: .zero, direction: CGPoint(x: 1, y: 0)), .burst(),
+    ]
+
+    private static func compile(_ effects: [CardEffect], size: CGSize, parallel: Bool) async {
+        let idle = CardMotion()
+        func compileOne(_ effect: CardEffect) async {
+            let shader = effect.shader(motion: idle, size: size)
+            switch effect.kind {
+            case .color: try? await shader.compile(as: .colorEffect)
+            case .layer: try? await shader.compile(as: .layerEffect)
+            }
+        }
+        if parallel {
+            await withTaskGroup(of: Void.self) { group in
+                for effect in effects {
+                    group.addTask { await compileOne(effect) }
                 }
             }
-            group.addTask {
-                try? await CardRippleModifier.shader(size: size, center: .zero, elapsed: 0, amplitude: 1, frequency: 1)
-                    .compile(as: .distortionEffect)
-            }
-            group.addTask {
-                try? await TearShader.shader(size: size, origin: .zero, tip: .zero, gap: 0, roughness: 0, lift: 0)
-                    .compile(as: .layerEffect)
-            }
-            group.addTask {
-                try? await CurlShader.shader(size: size, lineY: 60, front: 100, fromTrailing: false, radius: 20, edgeAllowance: 8)
-                    .compile(as: .layerEffect)
+        } else {
+            for effect in effects {
+                guard !Task.isCancelled else { return }
+                await compileOne(effect)
+                await Task.yield()
             }
         }
     }

@@ -1,3 +1,4 @@
+import CardPack
 import CardUI
 import SwiftUI
 
@@ -24,5 +25,14 @@ struct RootView: View {
         .tabViewStyle(.sidebarAdaptable)
         .cardTheme(theme)
         .tint(.yellow)
+        .overlay(alignment: .topTrailing) {
+            if UserDefaults.standard.bool(forKey: "showFPS") {
+                FrameRateOverlay()
+            }
+        }
+        .background {
+            // Exercises the opening pipeline once so the first tap is smooth.
+            PackWarmUpView(design: BoosterDemoView.designs[0], sampleCards: SampleLibrary.all)
+        }
     }
 }

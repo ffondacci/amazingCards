@@ -22,25 +22,22 @@ public struct ArtworkView: View {
 
     public var body: some View {
         switch artwork {
-        case .asset(let name):
-            Image(name, bundle: .main)
-                .resizable()
-                .aspectRatio(contentMode: contentMode)
-        case .url(let url):
-            remote(url)
+        case .asset, .url:
+            loaded(artwork)
         case .none:
             proceduralPlaceholder
         }
     }
 
+    /// Both sources decode in `ArtworkLoader`, off the main actor and
+    /// downsampled, so a card never decodes a full-size image at draw time.
     @ViewBuilder
-    private func remote(_ url: URL) -> some View {
+    private func loaded(_ artwork: CardArtwork) -> some View {
         ZStack {
             if let loaded {
                 Image(decorative: loaded, scale: 1)
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
-                    .transition(.opacity)
             } else if failed {
                 proceduralPlaceholder
                     .overlay {
@@ -49,15 +46,33 @@ public struct ArtworkView: View {
                             .foregroundStyle(.white.opacity(0.7))
                     }
             } else {
-                LoadingPlaceholder()
+                // Cached assets resolve within a frame; only remote images
+                // stay long enough to deserve the shimmer.
+                if case .url = artwork {
+                    LoadingPlaceholder()
+                } else {
+                    Color.clear
+                }
             }
         }
-        .task(id: url) {
+        .task(id: artwork) {
             loaded = nil
             failed = false
             do {
-                let image = try await ArtworkLoader.shared.image(for: url, maxPixelSize: maxPixelSize)
-                withAnimation(.easeOut(duration: 0.25)) { loaded = image }
+                let image: CGImage
+                switch artwork {
+                case .asset(let name):
+                    image = try await ArtworkLoader.shared.image(forAsset: name, maxPixelSize: maxPixelSize)
+                case .url(let url):
+                    image = try await ArtworkLoader.shared.image(for: url, maxPixelSize: maxPixelSize)
+                case .none:
+                    return
+                }
+                if case .url = artwork {
+                    withAnimation(.easeOut(duration: 0.25)) { loaded = image }
+                } else {
+                    loaded = image
+                }
             } catch is CancellationError {
                 // View went away, nothing to show.
             } catch {
@@ -80,7 +95,7 @@ public struct LoadingPlaceholder: View {
     public var body: some View {
         Rectangle()
             .fill(Color(white: 0.22))
-            .cardMotionIdle()
             .cardEffect(.shimmer(intensity: 0.45, angle: 25))
+            .cardMotionIdle(minimumInterval: 1 / 30)
     }
 }

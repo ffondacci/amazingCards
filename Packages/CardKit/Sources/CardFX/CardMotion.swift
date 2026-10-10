@@ -86,12 +86,14 @@ struct CardMotionProvider: ViewModifier {
     var pointer: CGPoint?
     var isInteracting: Bool
     var animates: Bool
+    /// Minimum interval between clock ticks; nil follows the display.
+    var minimumInterval: TimeInterval?
 
     @State private var origin = Date.now
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
-        TimelineView(.animation(paused: !animates || reduceMotion)) { timeline in
+        TimelineView(.animation(minimumInterval: minimumInterval, paused: !animates || reduceMotion)) { timeline in
             content.modifier(
                 CardMotionInjector(
                     tiltX: tilt.x,
@@ -115,19 +117,30 @@ public extension View {
     ///   - isInteracting: true while a gesture drives the tilt.
     ///   - animates: drives the clock for time-based effects (sparkles, stars).
     ///     Pass false for static thumbnails to save GPU and battery.
+    ///   - minimumInterval: caps the clock rate (for example 1/30 for a slow
+    ///     background), nil follows the display refresh rate.
+    ///
+    /// Apply the provider *outside* the effects: `view.cardEffect(…).cardMotion(…)`.
     func cardMotion(
         tilt: CGPoint,
         pointer: CGPoint? = nil,
         isInteracting: Bool = false,
-        animates: Bool = true
+        animates: Bool = true,
+        minimumInterval: TimeInterval? = nil
     ) -> some View {
-        modifier(CardMotionProvider(tilt: tilt, pointer: pointer, isInteracting: isInteracting, animates: animates))
+        modifier(CardMotionProvider(
+            tilt: tilt, pointer: pointer, isInteracting: isInteracting,
+            animates: animates, minimumInterval: minimumInterval
+        ))
     }
 
     /// Publishes a still motion whose clock is running (for animated
-    /// previews that nobody touches).
-    func cardMotionIdle(animates: Bool = true) -> some View {
-        modifier(CardMotionProvider(tilt: .zero, pointer: nil, isInteracting: false, animates: animates))
+    /// previews that nobody touches). Apply it outside the effects.
+    func cardMotionIdle(animates: Bool = true, minimumInterval: TimeInterval? = nil) -> some View {
+        modifier(CardMotionProvider(
+            tilt: .zero, pointer: nil, isInteracting: false,
+            animates: animates, minimumInterval: minimumInterval
+        ))
     }
 }
 

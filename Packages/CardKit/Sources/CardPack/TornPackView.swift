@@ -21,6 +21,9 @@ struct TornPackView: View {
     let bodyOffsetY: CGFloat
     let bodyOpacity: Double
 
+    /// Sparks intensity: 1 while tearing, fading to 0 after the break.
+    @State private var sparkIntensity: Double = 0
+
     private var lineY: CGFloat { height * design.stripFraction }
     private var fromTrailing: Bool { tear.direction.x < 0 }
 
@@ -59,36 +62,17 @@ struct TornPackView: View {
                     .allowsHitTesting(false)
             }
 
-            // Sparks at the cutting point while the finger tears. The layer
-            // overflows the pack so particles can fly past its edges.
-            if front > 0.5, !flyAway, tear.isActive {
-                // Overlay so the oversized layer does not enlarge the stack.
-                let overflow: CGFloat = 90
-                Color.clear
-                    .frame(width: width, height: height)
-                    .overlay {
-                        Rectangle()
-                            .fill(.black)
-                            .frame(width: width + overflow * 2, height: height + overflow * 2)
-                            .cardMotionIdle(animates: true)
-                            .cardEffect(.sparks(
-                                origin: CGPoint(x: rollCenterX + overflow, y: lineY + overflow),
-                                direction: CGPoint(x: fromTrailing ? -1 : 1, y: 0),
-                                tint: design.accent,
-                                intensity: 1.25
-                            ))
-                            .blendMode(.plusLighter)
-                    }
-                    .allowsHitTesting(false)
-            }
-
-            // Torn strip rolling up at the finger.
+            // Torn strip rolling up at the finger. The layer is cropped to
+            // the band so the curl shader only touches those pixels.
             if front > 0.5 {
+                let bandHeight = lineY + roughness * 1.6 + 2
                 pack
                     .overlay { fibreRim(front: front) }
                     .mask {
                         TornPackMask(kind: .strip, front: front, lineY: lineY, roughness: roughness, fromTrailing: fromTrailing)
                     }
+                    .frame(width: width, height: bandHeight, alignment: .top)
+                    .clipped()
                     .modifier(
                         CurlEffectModifier(
                             lineY: lineY,
@@ -98,6 +82,7 @@ struct TornPackView: View {
                             edgeAllowance: roughness * 1.6
                         )
                     )
+                    .frame(width: width, height: height, alignment: .top)
                     .rotationEffect(.degrees(flyAway ? (fromTrailing ? -28 : 28) : 0), anchor: .top)
                     .offset(
                         x: flyAway ? (fromTrailing ? -width * 0.6 : width * 0.6) : 0,
@@ -107,14 +92,58 @@ struct TornPackView: View {
                     .animation(.easeIn(duration: 0.6), value: flyAway)
                     .allowsHitTesting(false)
             }
+
+            // Sparks at the cutting point, with an afterglow once the band
+            // breaks. The layer overflows the pack so particles fly past
+            // its edges; it is an overlay so it does not enlarge the stack.
+            if sparkIntensity > 0.01 {
+                let overflow: CGFloat = 90
+                let sparkX = flyAway ? (fromTrailing ? 0 : width) : rollCenterX
+                let layerHeight = lineY + overflow + 220
+                Color.clear
+                    .frame(width: width, height: height)
+                    .overlay(alignment: .top) {
+                        Rectangle()
+                            .fill(.black)
+                            .frame(width: width + overflow * 2, height: layerHeight)
+                            .offset(y: -overflow)
+                            .cardEffect(.sparks(
+                                origin: CGPoint(x: sparkX + overflow, y: lineY + overflow),
+                                direction: CGPoint(x: fromTrailing ? -1 : 1, y: 0),
+                                tint: design.accent,
+                                intensity: 1.3 * sparkIntensity
+                            ))
+                            .cardMotionIdle(animates: true)
+                            .blendMode(.plusLighter)
+                    }
+                    .allowsHitTesting(false)
+            }
         }
         .frame(width: width, height: height)
+        .onChange(of: tear.isActive, initial: true) { _, active in
+            if active {
+                var still = Transaction()
+                still.disablesAnimations = true
+                withTransaction(still) { sparkIntensity = 1 }
+            } else if !tear.isTorn {
+                withAnimation(.easeOut(duration: 0.25)) { sparkIntensity = 0 }
+            }
+        }
+        .onChange(of: tear.isTorn) { _, torn in
+            if torn {
+                withAnimation(.easeOut(duration: 0.55)) { sparkIntensity = 0 }
+            }
+        }
     }
 
+    /// The printed pack, rasterized once: every copy below is masked or
+    /// curled on every drag event, and compositing a cached texture is
+    /// far cheaper than re-rendering text, canvases and shaders.
     private var pack: some View {
         BoosterPackView(design: design)
             .frame(width: width, height: height)
             .cardMotionIdle(animates: false)
+            .drawingGroup()
     }
 
     /// Off-white fibrous line along the cut, half of it clipped by each mask.

@@ -190,6 +190,8 @@ using namespace ckm;
     float2 size, float2 origin, float2 direction, float time, float intensity, float3 tint, float life
 ) {
     float2 p = position - origin;
+    // Nothing reaches farther than this: skip the particle loop early.
+    if (dot(p, p) > 280.0 * 280.0) { return half4(0.0h); }
     float2 dir = length(direction) > 0.001 ? normalize(direction) : float2(1.0, 0.0);
     float2 perp = float2(-dir.y, dir.x);
     float glow = 0.0;
@@ -209,7 +211,7 @@ using namespace ckm;
 
     // Particles: thrown backwards and sideways, stretched along their motion.
     float lifetime = max(life, 0.1);
-    for (int i = 0; i < 36; ++i) {
+    for (int i = 0; i < 20; ++i) {
         float seed = float(i) * 7.31;
         float t = fract(time / lifetime + hash21(float2(seed, 1.0)));
         float age = t * lifetime;
@@ -223,7 +225,7 @@ using namespace ckm;
         float2 vd = v / speed;
         float alongV = dot(q, vd);
         float acrossV = dot(q, float2(-vd.y, vd.x));
-        float r = 1.3 + 1.8 * hash21(float2(seed, 4.0));
+        float r = 1.5 + 2.2 * hash21(float2(seed, 4.0));
         float stretch = 1.0 + speed * 0.012;
         float spark = exp(-(alongV * alongV / (2.0 * r * r * stretch * stretch) + acrossV * acrossV / (2.0 * r * r)))
             * (1.0 - t) * (0.75 + 0.25 * sin(time * 40.0 + seed));

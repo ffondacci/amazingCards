@@ -74,7 +74,7 @@ struct EffectPreview: View {
                     .cardEffect(effect.scaled(by: intensity))
             }
         }
-        .cardMotionIdle(animates: animates)
+        .cardMotionIdle(animates: animates, minimumInterval: animates ? nil : 1)
     }
 }
 

@@ -80,7 +80,6 @@ public struct PackOpeningView: View {
         }
         .onDisappear { model.cancel() }
         .sensoryFeedback(.success, trigger: model.phase == .torn)
-        .sensoryFeedback(.impact(flexibility: .rigid, intensity: 0.45), trigger: Int(model.tear.progress * 14))
         .sensoryFeedback(.levelChange, trigger: model.currentCard?.id)
     }
 
@@ -93,13 +92,16 @@ public struct PackOpeningView: View {
             Rectangle()
                 .fill(.black)
                 .cardEffect(.starfield(density: 26, intensity: 0.8))
-            Rectangle()
-                .fill(.black)
-                .cardEffect(.burst(tint: tint, intensity: rare ? 0.9 : 0))
-                .opacity(rare ? 1 : 0)
-                .animation(.easeInOut(duration: 0.6), value: rare)
+                .renderScale(0.5)
+            if rare {
+                Rectangle()
+                    .fill(.black)
+                    .cardEffect(.burst(tint: tint, intensity: 0.9))
+                    .renderScale(0.5)
+                    .transition(.opacity.animation(.easeInOut(duration: 0.6)))
+            }
         }
-        .cardMotionIdle(animates: !reduceMotion)
+        .cardMotionIdle(animates: !reduceMotion, minimumInterval: 1 / 30)
         .ignoresSafeArea()
     }
 
@@ -150,6 +152,16 @@ public struct PackOpeningView: View {
             bodyOffsetY: bodyOffset,
             bodyOpacity: gone ? 0 : 1
         )
+        .background {
+            // Static blurred shape instead of a content shadow: the pack is
+            // re-rendered on every drag event and a real shadow would be too.
+            RoundedRectangle(cornerRadius: width * 0.035, style: .continuous)
+                .fill(.black.opacity(0.55))
+                .padding(.top, height * design.stripFraction * (phase == .sealed ? 0 : 1))
+                .blur(radius: 16)
+                .offset(y: bodyOffset + 12)
+                .opacity(gone ? 0 : 1)
+        }
         .modifier(PackFlight(source: arrivesFrom, resting: resting, progress: flightProgress))
         .animation(.spring(response: 0.75, dampingFraction: 0.85), value: phase)
         .cardShake(trigger: shakeCount, amplitude: 8)
@@ -161,7 +173,7 @@ public struct PackOpeningView: View {
         }
         .onTapGesture { if phase == .sealed { shakeCount += 1 } }
         .accessibilityAction(named: "Open the pack") { model.openImmediately() }
-        .shadow(color: .black.opacity(0.5), radius: 18, y: 10)
+        .background { TearHaptics(tear: model.tear) }
         .zIndex(gone ? 0 : 2)
     }
 
@@ -234,5 +246,16 @@ private struct PackFlight: ViewModifier, Animatable {
         content
             .scaleEffect(scale)
             .offset(offset)
+    }
+}
+
+/// Haptic ticks along the cut, isolated so only this view observes the
+/// tear progress (the rest of the screen is not re-evaluated per event).
+private struct TearHaptics: View {
+    let tear: TearState
+
+    var body: some View {
+        Color.clear
+            .sensoryFeedback(.impact(flexibility: .rigid, intensity: 0.45), trigger: Int(tear.progress * 14))
     }
 }

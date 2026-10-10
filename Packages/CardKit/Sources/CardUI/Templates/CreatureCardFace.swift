@@ -56,8 +56,8 @@ struct CreatureCardFace: View {
             // Inner paper tinted by the element.
             Rectangle()
                 .fill(.black)
-                .cardMotionIdle(animates: false)
                 .cardEffect(.holoPaper(hue: creature.element.color.hue, intensity: theme.paperIntensity))
+                .cardMotionIdle(animates: false)
                 .clipShape(m.innerShape)
                 .padding(m.borderWidth)
                 .cardEffects(recipe.frame)

@@ -19,6 +19,7 @@ struct CelestialCardFace: View {
             Rectangle()
                 .fill(.black)
                 .cardEffect(.starfield(density: 34, intensity: 1))
+                .renderScale(0.5)
             VStack(spacing: 0) {
                 photo
                     .frame(height: m.ptH(56))

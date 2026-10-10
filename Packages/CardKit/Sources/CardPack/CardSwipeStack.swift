@@ -54,8 +54,15 @@ public struct CardSwipeStack: View {
             ForEach(visible.reversed(), id: \.card.id) { position, card in
                 let isTop = position == 0
                 let faceUp = isTop ? (revealsFaces && topIsFaceUp) : !deckStyle
+                // A sealed deck shows backs only: faces (images, text, foil)
+                // are not built until they can be seen.
+                let needsFace = faceUp || (isTop && revealsFaces) || (position == 1 && revealsFaces && !deckStyle)
                 FlipContainer(isFaceUp: faceUp) {
-                    CardView(card: card, showsFinish: position < 2)
+                    if needsFace {
+                        CardView(card: card, showsFinish: position < 2)
+                    } else {
+                        Color.clear
+                    }
                 } back: {
                     CardBackView()
                 }
@@ -63,7 +70,7 @@ public struct CardSwipeStack: View {
                         tilt: isTop ? topTilt : .zero,
                         pointer: isTop ? pointer : nil,
                         isInteracting: isTop && isDragging,
-                        animates: isTop
+                        animates: isTop && revealsFaces
                     )
                     .cardTilt(isTop ? topTilt : .zero, maxRotation: 12)
                     .scaleEffect(1 - CGFloat(position) * 0.05)

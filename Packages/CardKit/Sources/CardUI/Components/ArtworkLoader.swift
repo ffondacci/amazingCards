@@ -2,6 +2,11 @@ import CardCore
 import CoreGraphics
 import Foundation
 import ImageIO
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 /// Decodes and caches card artwork off the main actor.
 ///
@@ -21,6 +26,14 @@ public actor ArtworkLoader {
         let url: URL
         let maxPixelSize: Int
     }
+
+    private struct AssetKey: Hashable {
+        let name: String
+        let maxPixelSize: Int
+    }
+
+    private var assetCache: [AssetKey: CGImage] = [:]
+    private var assetInFlight: [AssetKey: Task<CGImage, any Error>] = [:]
 
     private var cache: [Key: CGImage] = [:]
     private var inFlight: [Key: Task<CGImage, any Error>] = [:]
@@ -45,9 +58,59 @@ public actor ArtworkLoader {
         return image
     }
 
+    /// Returns a downsampled copy of an image of the main asset catalog.
+    /// Decoding a 2-megapixel JPEG on the main actor at first draw is a
+    /// visible hitch; this does it here, once, at the size the card needs.
+    public func image(forAsset name: String, maxPixelSize: Int = 1024) async throws -> CGImage {
+        let key = AssetKey(name: name, maxPixelSize: maxPixelSize)
+        if let cached = assetCache[key] { return cached }
+        if let task = assetInFlight[key] { return try await task.value }
+        let task = Task { try await Self.decodeAsset(named: name, maxPixelSize: maxPixelSize) }
+        assetInFlight[key] = task
+        defer { assetInFlight[key] = nil }
+        let image = try await task.value
+        assetCache[key] = image
+        return image
+    }
+
+    /// Decodes a list of assets ahead of time (app launch, before a reveal).
+    public func prewarm(assets names: [String], maxPixelSize: Int = 1024) async {
+        await withTaskGroup(of: Void.self) { group in
+            for name in names {
+                group.addTask { _ = try? await self.image(forAsset: name, maxPixelSize: maxPixelSize) }
+            }
+        }
+    }
+
     /// Drops every cached image (memory warning, for instance).
     public func purge() {
         cache.removeAll()
+        assetCache.removeAll()
+    }
+
+    @concurrent
+    private static func decodeAsset(named name: String, maxPixelSize: Int) async throws -> CGImage {
+        #if canImport(UIKit)
+        guard let source = UIImage(named: name, in: .main, with: nil)?.cgImage else { throw Failure.unreadable }
+        #else
+        guard let source = NSImage(named: name)?.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            throw Failure.unreadable
+        }
+        #endif
+        try Task.checkCancellation()
+        let longest = max(source.width, source.height)
+        let scale = min(1, Double(maxPixelSize) / Double(longest))
+        let width = max(Int(Double(source.width) * scale), 1)
+        let height = max(Int(Double(source.height) * scale), 1)
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { throw Failure.undecodable }
+        context.interpolationQuality = .high
+        context.draw(source, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let image = context.makeImage() else { throw Failure.undecodable }
+        return image
     }
 
     @concurrent

@@ -24,6 +24,7 @@ public struct CardBackView: View {
                 Rectangle()
                     .fill(.black)
                     .cardEffect(.nebula(palette: back.nebulaPalette, intensity: 0.9))
+                    .renderScale(0.5)
                     .blendMode(.screen)
                     .opacity(0.9)
                 m.innerShape

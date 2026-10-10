@@ -65,9 +65,9 @@ public struct PackOpeningView: View {
             if phase == .finished { onFinished(model.revealed) }
         }
         .task {
+            // The engine starts silently; sounds only play while tearing.
             guard playsSound else { return }
             await sounds.start()
-            sounds.crinkle(strength: 0.6)
         }
         .onDisappear { sounds.stop() }
         .task {
@@ -280,7 +280,7 @@ private struct TearFeedback: View {
             .sensoryFeedback(.impact(flexibility: .rigid, intensity: 0.45), trigger: Int(tear.progress * 14))
             .onChange(of: tear.isActive) { _, active in
                 if active {
-                    sounds.crinkle(strength: 0.9)
+                    sounds.crinkle(strength: 0.5)
                     lastProgress = tear.progress
                     lastTime = .now
                 } else {

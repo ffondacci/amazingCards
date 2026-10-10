@@ -32,7 +32,7 @@ public final class PackSoundscape {
         let node = Self.makeSourceNode(format: format, synth: synth)
         engine.attach(node)
         engine.connect(node, to: engine.mainMixerNode, format: format)
-        engine.mainMixerNode.outputVolume = 0.8
+        engine.mainMixerNode.outputVolume = 0.55
         do {
             try engine.start()
             sourceNode = node
@@ -115,6 +115,8 @@ final class PackSoundSynth: Sendable {
         var whooshEnv: Float = 0
         var whooshTime: Float = -1
         var whooshLP: Float = 0
+        var crinkleBand: Float = 0
+        var masterLP: Float = 0
         /// Reused output buffer: the lock's closure cannot capture the
         /// caller's pointer, so samples are produced here and copied out.
         var scratch: [Float] = []
@@ -159,9 +161,11 @@ final class PackSoundSynth: Sendable {
                 s.crinkleStrength = snapshot.crinkleStrength
             }
             if snapshot.whooshPending { s.whooshTime = 0 }
-            let crinkleDecay = exp(-1 / (sr * 0.006))
-            let crinkleHP = 1 - exp(-2 * Float.pi * 1800 / sr)
-            let tearSlow = 1 - exp(-2 * Float.pi * 220 / sr)
+            let crinkleDecay = exp(-1 / (sr * 0.008))
+            let crinkleHP = 1 - exp(-2 * Float.pi * 700 / sr)
+            let crinkleLPk = 1 - exp(-2 * Float.pi * 2600 / sr)
+            let tearSlow = 1 - exp(-2 * Float.pi * 180 / sr)
+            let masterK = 1 - exp(-2 * Float.pi * 4200 / sr)
             let attack = 1 - exp(-1 / (sr * 0.03))
             let release = 1 - exp(-1 / (sr * 0.12))
 
@@ -182,14 +186,15 @@ final class PackSoundSynth: Sendable {
                 }
                 s.crinkleEnv *= crinkleDecay
                 s.crinkleLP += (noise - s.crinkleLP) * crinkleHP
-                sample += (noise - s.crinkleLP) * s.crinkleEnv * 0.9
+                s.crinkleBand += ((noise - s.crinkleLP) - s.crinkleBand) * crinkleLPk
+                sample += s.crinkleBand * s.crinkleEnv * 0.6
 
                 // Tearing: band-passed noise, brighter and louder with speed,
                 // with a coarse random crackle.
                 let target = snapshot.tearSpeed
                 s.tearLevel += (target - s.tearLevel) * (target > s.tearLevel ? attack : release)
                 if s.tearLevel > 0.001 {
-                    let cutoff = 500 + 5000 * s.tearLevel
+                    let cutoff = 320 + 1900 * s.tearLevel
                     let k = 1 - exp(-2 * Float.pi * cutoff / sr)
                     s.tearLP += (noise - s.tearLP) * k
                     s.tearSlowLP += (s.tearLP - s.tearSlowLP) * tearSlow
@@ -198,7 +203,7 @@ final class PackSoundSynth: Sendable {
                         s.crackleCounter = Int(sr * (0.002 + 0.004 * Float(s.rng & 0xFF) / 255))
                         s.crackle = 0.4 + 0.6 * Float(s.rng >> 4 & 0xFF) / 255
                     }
-                    sample += (s.tearLP - s.tearSlowLP) * s.tearLevel * s.crackle * 1.6
+                    sample += (s.tearLP - s.tearSlowLP) * s.tearLevel * s.crackle * 1.1
                 }
 
                 // Whoosh: noise through a low-pass whose cutoff sweeps up
@@ -207,14 +212,16 @@ final class PackSoundSynth: Sendable {
                     s.whooshTime += dt
                     let t = s.whooshTime
                     let env = t < 0.08 ? t / 0.08 : max(0, 1 - (t - 0.08) / 0.45)
-                    let cutoff = 400 + 2600 * min(t / 0.3, 1)
+                    let cutoff = 260 + 1500 * min(t / 0.3, 1)
                     let k = 1 - exp(-2 * Float.pi * cutoff / sr)
                     s.whooshLP += (noise - s.whooshLP) * k
-                    sample += s.whooshLP * env * 0.8
+                    sample += s.whooshLP * env * 0.55
                     if t > 0.6 { s.whooshTime = -1 }
                 }
 
-                s.scratch[i] = tanh(sample)
+                // Gentle master low-pass takes the hiss off everything.
+                s.masterLP += (sample - s.masterLP) * masterK
+                s.scratch[i] = tanh(s.masterLP)
             }
             return Array(s.scratch[0..<frames])
         }

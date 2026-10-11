@@ -13,6 +13,7 @@ public struct ArtworkView: View {
 
     @State private var loaded: CGImage?
     @State private var failed = false
+    @Environment(\.artworkProvider) private var provider
 
     public init(_ artwork: CardArtwork, contentMode: ContentMode = .fill, maxPixelSize: Int = 1024) {
         self.artwork = artwork
@@ -34,6 +35,13 @@ public struct ArtworkView: View {
         switch artwork {
         case .asset, .url:
             loaded(artwork)
+        case .custom(let key):
+            // The app's own view, filling the frame like a picture would.
+            if let view = provider(key) {
+                view.clipped()
+            } else {
+                proceduralPlaceholder
+            }
         case .none:
             proceduralPlaceholder
         }
@@ -79,7 +87,7 @@ public struct ArtworkView: View {
                     image = try await ArtworkLoader.shared.image(forAsset: name, maxPixelSize: maxPixelSize)
                 case .url(let url):
                     image = try await ArtworkLoader.shared.image(for: url, maxPixelSize: maxPixelSize)
-                case .none:
+                case .custom, .none:
                     return
                 }
                 if case .url = artwork {

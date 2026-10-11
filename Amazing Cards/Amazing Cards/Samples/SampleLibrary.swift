@@ -20,7 +20,7 @@ enum SampleLibrary {
         )),
         rarity: .legendary,
         finish: .gold,
-        number: CardNumber(1, of: 10),
+        number: CardNumber(1, of: 12),
         setName: setName
     )
 
@@ -38,7 +38,7 @@ enum SampleLibrary {
         )),
         rarity: .epic,
         finish: .cosmos,
-        number: CardNumber(2, of: 10),
+        number: CardNumber(2, of: 12),
         setName: setName
     )
 
@@ -56,7 +56,7 @@ enum SampleLibrary {
         )),
         rarity: .rare,
         finish: .holo,
-        number: CardNumber(3, of: 10),
+        number: CardNumber(3, of: 12),
         setName: setName
     )
 
@@ -74,7 +74,7 @@ enum SampleLibrary {
         )),
         rarity: .uncommon,
         finish: .matte,
-        number: CardNumber(4, of: 10),
+        number: CardNumber(4, of: 12),
         setName: setName
     )
 
@@ -93,7 +93,7 @@ enum SampleLibrary {
         )),
         rarity: .epic,
         finish: .galaxy,
-        number: CardNumber(5, of: 10),
+        number: CardNumber(5, of: 12),
         setName: setName,
         credit: "Adam Evans"
     )
@@ -113,7 +113,7 @@ enum SampleLibrary {
         )),
         rarity: .rare,
         finish: .prism,
-        number: CardNumber(6, of: 10),
+        number: CardNumber(6, of: 12),
         setName: setName,
         credit: "NASA, ESA, Hubble"
     )
@@ -133,7 +133,7 @@ enum SampleLibrary {
         )),
         rarity: .legendary,
         finish: .rainbow,
-        number: CardNumber(7, of: 10),
+        number: CardNumber(7, of: 12),
         setName: setName,
         credit: "NASA, ESA, Hubble"
     )
@@ -153,7 +153,7 @@ enum SampleLibrary {
         )),
         rarity: .common,
         finish: .matte,
-        number: CardNumber(8, of: 10),
+        number: CardNumber(8, of: 12),
         setName: setName,
         credit: "NASA / JPL / SSI"
     )
@@ -178,7 +178,7 @@ enum SampleLibrary {
         )),
         rarity: .rare,
         finish: .holo,
-        number: CardNumber(9, of: 10),
+        number: CardNumber(9, of: 12),
         setName: setName,
         credit: "Wikimedia"
     )
@@ -202,15 +202,55 @@ enum SampleLibrary {
         )),
         rarity: .epic,
         finish: .fullArt,
-        number: CardNumber(10, of: 10),
+        number: CardNumber(10, of: 12),
         setName: setName,
         credit: "NASA / JPL"
+    )
+
+    /// Two cards whose pictures are views of the app, not images: a
+    /// SwiftUI aurora and a comet drawn with UIKit (see `CustomArtworks`).
+    static let aurora = Card(
+        id: "celestial-aurora",
+        title: "Aurora Borealis",
+        artwork: .custom(CustomArtworks.aurora),
+        content: .celestial(CelestialObject(
+            designation: "Northern lights",
+            kind: .star,
+            constellation: "Polar sky",
+            distance: "100 km up",
+            description: "Solar wind meeting the upper atmosphere: curtains of green and violet light drawn live by a SwiftUI view."
+        )),
+        rarity: .rare,
+        finish: .galaxy,
+        number: CardNumber(11, of: 12),
+        setName: setName,
+        credit: "Drawn in SwiftUI"
+    )
+
+    static let comet = Card(
+        id: "celestial-comet",
+        title: "Halley's Comet",
+        artwork: .custom(CustomArtworks.comet),
+        content: .celestial(CelestialObject(
+            designation: "1P/Halley",
+            kind: .comet,
+            constellation: "Varies",
+            distance: "0.6 au at perihelion",
+            apparentMagnitude: 2.1,
+            description: "Back every 76 years. This one is painted with UIKit layers and rendered into a picture."
+        )),
+        rarity: .uncommon,
+        finish: .holo,
+        number: CardNumber(12, of: 12),
+        setName: setName,
+        credit: "Drawn with UIKit"
     )
 
     static let all: [Card] = [
         vanGogh, starryNight, sunflowers, wheatfield,
         andromeda, orion, pillars, saturn,
         vincentCreature, saturnCreature,
+        aurora, comet,
     ]
 
     static let set = CardSet(id: "amazing-set-1", name: setName, cards: all)

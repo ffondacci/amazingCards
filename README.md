@@ -14,7 +14,7 @@ engineering guidelines.
 |---|---|
 | `CardCore` | Pure models: `Card`, `CardContent` (creature / artist / painting / celestial), `ParallaxDesign` (layers: picture, glow backdrop, big word, title, text box, specs; neon or rim frame; specks; back), `Rarity`, `CardFinish`, `BoosterPack`, `BoosterGenerator`, `SeededRandomNumberGenerator`. No UI. |
 | `CardFX` | Metal shaders + SwiftUI modifiers: `CardEffect`, `HoloStyle`, `cardMotion(...)` (apply it *outside* the effects), `CardMotionStage`, `TiltTransform`, `DeviceMotionSource`, animatable `cardSweep` / `cardDissolve` / `cardRipple`, `renderScale(_:)` for cheap backgrounds, `CardFXShaders.warmUp(first:)`. |
-| `CardUI` | `CardView` (picks a template per content), `ParallaxCardView` (a layered card: layers at depths slide apart as it tilts, drag to turn, tap twice to flip, `ParallaxMode` card / stack / spread), `CardMetrics` (size-relative layout), `FinishRecipe`, `CardTheme`, `CardBackView`, `FlippableCardView`, `InteractiveCardView`, `CardFanView`, `ArtworkView` + `ArtworkLoader` actor, `cardIdleFloat`, `cardShake`, `.cardDissolve()` transition. |
+| `CardUI` | `CardView` (picks a template per content), `ArtworkProvider` + `.artworkProvider { key in … }` (your own SwiftUI views, or UIKit drawings rendered to an image, as the picture of any card, pack or layer through `CardArtwork.custom(key)`), `ParallaxCardView` (a layered card: layers at depths slide apart as it tilts, drag to turn, tap twice to flip, `ParallaxMode` card / stack / spread), `CardMetrics` (size-relative layout), `FinishRecipe`, `CardTheme`, `CardBackView`, `FlippableCardView`, `InteractiveCardView`, `CardFanView`, `ArtworkView` + `ArtworkLoader` actor, `cardIdleFloat`, `cardShake`, `.cardDissolve()` transition. |
 | `CardStage` | Metal 3D stage (`StageView`, `StageScene`, `StageSettings`): foil pouches on a carousel in an analytic studio (puff, wrinkles, crimped seals, holo foil, clear coat, floor reflection, shadow, shine sweep), the six openings (`OpeningStyle`: tear, rip, zip, melt, roll, lid), the deal of the cards with the rare one revealed last, flakes, sparks, smoke and the aura. Pictures come in as `PackSkin` / `CardSkin`. |
 | `CardPack` | `PackStageView` (the stage printed with `PackDesign`s, dealing our cards), `PackPrints` (renders pack and card pictures for the stage), `PackBackView`, `PackLayout` + `.packLayout(_:)` (every size of the pack flow as fractions: `.standard`, `.compact`, `.large`), `PackDesign` (pocket-pack layout: thick top band, double seam, full-bleed cover, thin bottom band, foil and prism strength), `BoosterPackView` (tall pouch with crimped seals, `PackShape` silhouette, flat glossy print), `PackCarouselView`, `tearable(...)` + `TearState` + `TornEdgeShape`, `TornPackView` (strip rolls up with `ck_curl`, sparks and paper flecks with `ck_sparks`, tension under the finger, bag mouth with `ck_mouth`), `CardSwipeStack`, `PackOpeningView` + `PackOpeningModel`, `PackSoundscape` + `PackSoundSet` (your own sound files for the tear), `PackWarmUpView`. |
 
@@ -91,6 +91,30 @@ The 2D bricks of the previous flow stay available: `PackOpeningView`,
 mouth with `ck_mouth`), `CardSwipeStack`, the generic `tearable` modifier
 (`ck_tear`), `PackLayout` for their sizes, `PackSoundscape` + `PackSoundSet`
 for sound files, `PackWarmUpView`.
+
+## Your own views as pictures
+
+Every picture is a `CardArtwork`: an asset, a URL, or `.custom(key)`. For
+the last one the app installs a provider once, high in the hierarchy:
+
+```swift
+RootView().artworkProvider { key in
+    switch key {
+    case "aurora": AnyView(AuroraView())            // any SwiftUI view
+    case "comet": AnyView(Image(uiImage: drawn))    // a UIKit drawing, rendered to an image
+    default: nil
+    }
+}
+```
+
+The view fills the frame of the card window, the pack cover or the
+parallax layer that shows it. The 3D stage prints packs and dealt cards
+into textures with `ImageRenderer`, which takes one frame outside the
+environment: views must draw synchronously, and a host that renders cards
+itself hands the provider to its `PackPrints`. UIKit and AppKit views are
+drawn into an image first (`ImageRenderer` renders platform views blank).
+The demo's Aurora card and pack are a SwiftUI `Canvas`; its comet card is
+UIKit layers rendered with `UIGraphicsImageRenderer`.
 
 ## Parallax cards
 

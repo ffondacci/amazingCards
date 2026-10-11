@@ -29,6 +29,7 @@ public struct PackStageView: View {
     @State private var skins: [Int: PackSkin] = [:]
     @Environment(\.cardMotion) private var motion
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.artworkProvider) private var artworkProvider
 
     public init(
         designs: [PackDesign],
@@ -87,6 +88,7 @@ public struct PackStageView: View {
             .animation(.easeOut(duration: 0.25), value: scene.hint)
             .animation(.easeOut(duration: 0.25), value: scene.phase)
             .task(id: designs) {
+                prints.artworkProvider = artworkProvider
                 await prints.prepare(designs)
                 guard !Task.isCancelled, !designs.isEmpty else { return }
                 var next: [Int: PackSkin] = [:]

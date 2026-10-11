@@ -13,6 +13,7 @@ struct BoosterDemoView: View {
     @State private var opened: [Card] = []
     @State private var prints = PackPrints()
     @State private var phase: StagePhase = .idle
+    @Environment(\.artworkProvider) private var artworkProvider
     /// The next pack and its pictures, prepared while the carousel idles.
     @State private var nextDeal: (pack: BoosterPack, skins: [CardSkin])?
     @State private var dealt = 0
@@ -49,6 +50,17 @@ struct BoosterDemoView: View {
             emblemSymbol: "moon.stars.fill"
         ),
         PackDesign(
+            title: "Aurora",
+            subtitle: "Drawn in SwiftUI",
+            setCode: "S1",
+            cover: .custom(CustomArtworks.aurora),
+            topColor: CardColor(hex: 0x063D3A),
+            bottomColor: CardColor(hex: 0x02110F),
+            accent: CardColor(hex: 0x5CFFB0),
+            foilHue: 0.45,
+            emblemSymbol: "sparkles"
+        ),
+        PackDesign(
             title: "Amazing",
             subtitle: "Series 1",
             setCode: "S1",
@@ -81,6 +93,8 @@ struct BoosterDemoView: View {
                     return deal.skins
                 }
                 .task(id: dealt) {
+                    // The dealt cards are rendered to pictures, outside the environment.
+                    if dealt == 0 { prints.artworkProvider = artworkProvider }
                     await prints.prepareCards(SampleLibrary.boosterPool)
                     guard !Task.isCancelled, nextDeal == nil else { return }
                     let pack = newPack()

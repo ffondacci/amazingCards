@@ -12,10 +12,16 @@ import SwiftUI
 public final class PackPrints {
     /// Pixel width of a print; the height follows the pouch ratio.
     public var width: Int
+    /// Draws the `.custom` artworks of the prints. `ImageRenderer` does not
+    /// see the host's environment, so the provider is handed in here.
+    public var artworkProvider: ArtworkProvider {
+        didSet { cache.removeAll(); backCache.removeAll() }
+    }
     private var cache: [PackDesign: PackSkin] = [:]
 
-    public init(width: Int = 1024) {
+    public init(width: Int = 1024, artworkProvider: ArtworkProvider = .none) {
         self.width = width
+        self.artworkProvider = artworkProvider
     }
 
     /// Loads the cover of every design first, so the prints are not blank.
@@ -88,7 +94,7 @@ public final class PackPrints {
     }
 
     private func render<Content: View>(_ content: Content, size: CGSize) -> CGImage? {
-        let renderer = ImageRenderer(content: content.frame(width: size.width, height: size.height))
+        let renderer = ImageRenderer(content: content.frame(width: size.width, height: size.height).artworkProvider(artworkProvider))
         renderer.scale = 1
         renderer.isOpaque = true
         return renderer.cgImage

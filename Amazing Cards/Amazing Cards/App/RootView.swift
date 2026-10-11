@@ -24,6 +24,7 @@ struct RootView: View {
         }
         .tabViewStyle(.sidebarAdaptable)
         .cardTheme(theme)
+        .artworkProvider(CustomArtworks.provider)
         .tint(.yellow)
         .overlay(alignment: .topTrailing) {
             if UserDefaults.standard.bool(forKey: "showFPS") {

@@ -104,6 +104,9 @@ public enum CardArtwork: Hashable, Sendable, Codable {
     case asset(String)
     /// A remote or file URL, loaded and downsampled asynchronously.
     case url(URL)
+    /// A view the app draws itself, found by this key in the
+    /// `artworkProvider` of the SwiftUI environment (see `CardUI`).
+    case custom(String)
     /// No picture: the template draws a procedural background instead.
     case none
 }

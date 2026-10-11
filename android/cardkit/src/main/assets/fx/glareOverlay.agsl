@@ -1,0 +1,17 @@
+// The glare as an overlay to SCREEN-blend over the card: mix(src, screen(src, g), k)
+// equals screen(src, k * g), so drawing k * g with the screen blend mode is exact.
+uniform float2 size;
+uniform float2 tilt;
+uniform float2 pointer;
+uniform float time;
+uniform float intensity;
+uniform float radius;
+
+half4 main(float2 position) {
+    float2 uv = position / max(size, float2(1.0));
+    float2 p = resolvePointer(pointer, tilt);
+    float valid = step(0.0, pointer.x) * step(0.0, pointer.y);
+    float active = max(valid, smoothstep(0.0, 0.25, length(tilt)));
+    float v = glarePoint(uv, p, radius, 1.6) * 0.9 * clamp(intensity * active, 0.0, 1.0);
+    return half4(half3(v), half(v));
+}

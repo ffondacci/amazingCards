@@ -22,6 +22,10 @@ Amazing Cards/                    Demo app (Xcode project, folder-synchronized t
   Amazing Cards/Demo/             Catalog screens (collection, effects, animations, booster)
   Amazing Cards/Samples/          Sample cards (Van Gogh, paintings, celestial objects)
   Amazing Cards/Assets.xcassets   Sample images (public domain, Wikimedia)
+android/                          Android port of the booster stage (Vulkan) + Compose demo
+  cardkit/src/main/cpp/           C++ scene + Vulkan renderer + JNI, GLSL shaders (glslc → assets)
+  cardkit/src/main/kotlin/        Kotlin models, Canvas prints, Stage / StageView / PackStageView
+  demo/                           Demo app (Collection, Booster)
 ressources/                       Raw source material (not shipped)
 ```
 
@@ -116,6 +120,18 @@ xcrun simctl launch booted <bundle-id> -demoRoute effects   # collection | effec
 
 A change is done only when: the package builds with zero warnings, tests pass, the demo app
 builds, and the affected screen has been looked at on both an iPhone and an iPad simulator.
+
+```sh
+# Android (same stage in Vulkan): build, install on the emulator, screenshot
+cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :demo:assembleDebug
+adb install -r demo/build/outputs/apk/debug/demo-debug.apk
+adb shell am start -n com.amazingcards.demo/.MainActivity --es demoRoute booster --es openAfter 2000
+adb exec-out screencap -p > shot.png
+```
+
+The Android stage must stay a faithful port: `android/cardkit/src/main/cpp/stage_*.cpp` mirror the
+Swift files of `CardStage` one for one, and `shaders/*.glsl` mirror the Metal shaders (same uniform
+layouts, same dials, same constants). A change to the choreography or the shading lands on both.
 
 ## Conventions
 - Commit messages: English, imperative, explain the why. Jira keys only in commit messages.

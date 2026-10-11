@@ -596,7 +596,8 @@ static inline float radialT(float2 css, float2 center, float2 radii) {
 
 /// Sum of the wedges of one ray layer at `angleDeg` (0 = up, clockwise).
 static inline float rayLayer(float angleDeg, constant RayWedge *wedges, int count, float spin) {
-    float a = fmod(angleDeg - spin + 720.0, 360.0);
+    float a = angleDeg - spin;
+    a -= 360.0 * floor(a / 360.0);
     float v = 0.0;
     for (int i = 0; i < count; ++i) {
         RayWedge w = wedges[i];

@@ -1,0 +1,22 @@
+// Pastel cloudy "holo paper" behind framed cards. Generator: keeps the alpha only.
+uniform shader content;
+uniform float2 size;
+uniform float2 tilt;
+uniform float2 pointer;
+uniform float time;
+uniform float intensity;
+uniform float hue;
+
+half4 main(float2 position) {
+    float4 color = float4(content.eval(position));
+    float2 uv = position / max(size, float2(1.0));
+    float2 pan = resolvePointer(pointer, tilt) - 0.5;
+    float clouds = fbm(uv * float2(3.0, 4.0) + pan * 0.3, 5);
+    float grain = vnoise(uv * float2(500.0, 700.0)) * 0.08;
+    float3 base = float3(0.93, 0.92, 0.91);
+    float3 tint = pastel(hue + uv.y * 0.6 + clouds * 0.8 + pan.x * 0.4);
+    float mask = 0.25 + 0.55 * smoothstep(0.3, 0.8, uv.y + clouds * 0.3 - 0.2);
+    float3 col = mix(base, tint, clamp(intensity, 0.0, 1.0) * mask);
+    col = col * (0.95 + grain) - clouds * 0.08;
+    return premulRgb(col, color.a);
+}

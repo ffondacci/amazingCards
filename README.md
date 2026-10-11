@@ -6,7 +6,8 @@ flow. Everything lives in the `CardKit` Swift package (`Packages/CardKit`);
 the `Amazing Cards` Xcode project is a demo that catalogs every brick.
 
 Swift 6, SwiftUI, Metal (SwiftUI shaders). iOS 26+. See `CLAUDE.md` for the
-engineering guidelines.
+engineering guidelines. The booster stage also exists for Android, in
+Vulkan, under `android/` (see [Android](#android-vulkan)).
 
 ## Package layout
 
@@ -144,6 +145,33 @@ xcodebuild -project "Amazing Cards/Amazing Cards.xcodeproj" -scheme "Amazing Car
 The demo accepts `-demoRoute collection|effects|animations|booster` to open a
 screen directly, and `-showFPS YES` to overlay a display-link frame counter
 (current rate and the worst half-second of the last three seconds).
+
+## Android (Vulkan)
+
+`android/` holds the same booster stage for Android, with the same look:
+the C++ scene is a line-by-line port of `CardStage` (carousel, gestures,
+the six openings, the deal, particles) and the GLSL shaders mirror
+`Stage.metal` / `StageEffects.metal` (same uniforms, same lighting, same
+dials). It renders with Vulkan 1.1 (4× MSAA, sRGB swapchain, alpha to
+coverage, negative viewport so the Metal matrices and winding carry over).
+
+| Module | What it contains |
+|---|---|
+| `android/cardkit` | Library. `cpp/`: `StageScene`, `StageRenderer`, `VkContext`, pouch geometry, particles, JNI bridge, GLSL shaders compiled to SPIR-V by `glslc` at build time. `kotlin/`: `core` models (`Card`, `PackDesign`, `BoosterGenerator`…), `stage` (`Stage`, `StageView`, `PackStageView`, `StageSettings`, `OpeningStyle`, `PackPrints`), `paint` (the pack and card prints drawn with `Canvas` the way the SwiftUI views draw them, in frame / artwork / overlay layers, `ArtworkProvider` for your own pictures), `fx` (the `CardFX` effects as AGSL: the 13 `HoloStyle`s, glare, sparkle, sweep, shimmer, holo paper, foil wrap, star field, nebula, burst; `FinishRecipe` per region; `CardMotionStage` with drag, gyroscope and showcase), `ui` (`CardFaceView` drawing the layers through chained AGSL paints, `FlippableCard`). |
+| `android/demo` | Compose demo: Collection (the twelve sample cards with their foil, tap one for the interactive card with finish picker, flip and gyroscope) and Booster (the stage, studio or night, the six openings). |
+
+```sh
+cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :demo:assembleDebug
+adb install -r demo/build/outputs/apk/debug/demo-debug.apk
+adb shell am start -n com.amazingcards.demo/.MainActivity --es demoRoute booster \
+  --es opening zip --es openAfter 2000     # style, and open the front pack by itself
+```
+
+Needs the NDK 28, CMake 3.31 and a Vulkan device or an emulator started with
+`-feature Vulkan -gpu host`. The card effects need Android 13 (AGSL); the
+emulator's GPU bridge does not draw chained runtime shaders, so the foil is
+only visible on a device. Not ported yet: the parallax cards, the effects
+and animations catalogs.
 
 ## Performance notes
 

@@ -1,0 +1,23 @@
+// Deep-space star field with a faint milky band, parallax on tilt. Generator.
+uniform shader content;
+uniform float2 size;
+uniform float2 tilt;
+uniform float2 pointer;
+uniform float time;
+uniform float intensity;
+uniform float density;
+
+half4 main(float2 position) {
+    float4 color = float4(content.eval(position));
+    float2 s = max(size, float2(1.0));
+    float2 uv = position / s;
+    float2 q = float2(uv.x * (s.x / s.y), uv.y);
+    float2 pan = tilt * 0.02;
+    float3 col = float3(0.010, 0.015, 0.045);
+    col += stars(q, density, pan * 0.5, time, 1.0) * float3(0.8, 0.85, 1.0) * 0.6;
+    col += stars(q, density * 0.5, pan, time, 11.0) * float3(1.0, 0.95, 0.9);
+    col += stars(q, density * 0.25, pan * 1.6, time, 29.0) * float3(0.9, 0.95, 1.0) * 1.2;
+    float milky = fbm(q * 2.0 + float2(0.0, 0.3), 4);
+    col += float3(0.08, 0.09, 0.16) * smoothstep(0.45, 0.8, milky);
+    return premulRgb(col * clamp(intensity, 0.0, 1.5), color.a);
+}

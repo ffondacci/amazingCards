@@ -1,0 +1,26 @@
+// Crinkled metallic wrapper tinted around `hue`, blended over the print.
+uniform shader content;
+uniform float2 size;
+uniform float2 tilt;
+uniform float2 pointer;
+uniform float time;
+uniform float intensity;
+uniform float hue;
+
+half4 main(float2 position) {
+    float4 color = float4(content.eval(position));
+    if (color.a < 0.004) { return half4(color); }
+    float2 uv = position / max(size, float2(1.0));
+    float2 pan = resolvePointer(pointer, tilt) - 0.5;
+    float crinkle = fbm(uv * float2(7.0, 10.0), 5);
+    float creases = pow(abs(sin(crinkle * 14.0 + pan.x * 4.0 + pan.y * 3.0)), 5.0);
+    float facets = vnoise(uv * float2(18.0, 26.0) + pan * 2.0);
+    float3 src = unpremulRgb(color);
+    float3 tint = spectrum(hue + facets * 0.25 + pan.y * 0.3);
+    float3 metal = mix(src * 0.55, src * 1.35, facets) + tint * 0.10 * facets;
+    metal += float3(1.0) * creases * 0.45;
+    float band = pow(0.5 + 0.5 * cos((uv.x + uv.y * 0.4 - pan.x * 1.5) * TAU * 1.2), 4.0);
+    metal += band * float3(0.8, 0.85, 0.95) * 0.35;
+    float3 result = mix(src, metal, clamp(intensity, 0.0, 1.0));
+    return premulRgb(result, color.a);
+}

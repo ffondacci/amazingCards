@@ -1,0 +1,25 @@
+// One light band crossing the card, `progress` 0 → 1 edge to edge.
+uniform shader content;
+uniform float2 size;
+uniform float2 tilt;
+uniform float2 pointer;
+uniform float time;
+uniform float intensity;
+uniform float progress;
+uniform float width;
+uniform float angle;
+
+half4 main(float2 position) {
+    float4 color = float4(content.eval(position));
+    if (color.a < 0.004) { return half4(color); }
+    float2 uv = position / max(size, float2(1.0));
+    float a = angle * PI / 180.0;
+    float2 dir = float2(cos(a), sin(a));
+    float t = dot(uv - 0.5, dir) + 0.5;
+    float center = mix(-width, 1.0 + width, progress);
+    float band = pow(1.0 - smoothstep(0.0, width, abs(t - center)), 1.5);
+    float3 src = unpremulRgb(color);
+    float3 result = screenBlend(src, float3(band * intensity));
+    result += spectrum(t * 3.0 + progress) * band * intensity * 0.15;
+    return premulRgb(result, color.a);
+}

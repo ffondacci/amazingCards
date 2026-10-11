@@ -1,0 +1,22 @@
+// Soft specular highlight following the pointer (or the tilt).
+uniform shader content;
+uniform float2 size;
+uniform float2 tilt;
+uniform float2 pointer;
+uniform float time;
+uniform float intensity;
+uniform float radius;
+
+half4 main(float2 position) {
+    float4 color = float4(content.eval(position));
+    if (color.a < 0.004) { return half4(color); }
+    float2 uv = position / max(size, float2(1.0));
+    float2 p = resolvePointer(pointer, tilt);
+    float valid = step(0.0, pointer.x) * step(0.0, pointer.y);
+    float active = max(valid, smoothstep(0.0, 0.25, length(tilt)));
+    float g = glarePoint(uv, p, radius, 1.6);
+    float3 src = unpremulRgb(color);
+    float3 lit = screenBlend(src, float3(g * 0.9));
+    float3 result = mix(src, lit, clamp(intensity * active, 0.0, 1.0));
+    return premulRgb(result, color.a);
+}

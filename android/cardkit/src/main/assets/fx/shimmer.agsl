@@ -1,0 +1,22 @@
+// Loading shimmer: a soft band travelling at a fixed pace.
+uniform shader content;
+uniform float2 size;
+uniform float2 tilt;
+uniform float2 pointer;
+uniform float time;
+uniform float intensity;
+uniform float angle;
+
+half4 main(float2 position) {
+    float4 color = float4(content.eval(position));
+    if (color.a < 0.004) { return half4(color); }
+    float2 uv = position / max(size, float2(1.0));
+    float a = angle * PI / 180.0;
+    float2 dir = float2(cos(a), sin(a));
+    float t = dot(uv - 0.5, dir) + 0.5;
+    float center = fract(time * 0.5) * 1.6 - 0.3;
+    float band = 1.0 - smoothstep(0.0, 0.25, abs(t - center));
+    float3 src = unpremulRgb(color);
+    float3 result = src + float3(band * intensity * 0.6);
+    return premulRgb(result, color.a);
+}

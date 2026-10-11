@@ -1,0 +1,119 @@
+// Shared helpers of the card effects, prepended to every AGSL program.
+// Ports of Holo.metal / Materials.metal: same noise, same spectrum, same blends.
+const float TAU = 6.28318530718;
+const float PI = 3.14159265359;
+
+float hash21(float2 p) {
+    float3 p3 = fract(float3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+float vnoise(float2 p) {
+    float2 i = floor(p);
+    float2 f = fract(p);
+    float2 u = f * f * (3.0 - 2.0 * f);
+    float a = hash21(i);
+    float b = hash21(i + float2(1.0, 0.0));
+    float c = hash21(i + float2(0.0, 1.0));
+    float d = hash21(i + float2(1.0, 1.0));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fbm(float2 p, int octaves) {
+    float value = 0.0;
+    float amplitude = 0.5;
+    float2x2 m = float2x2(0.8, -0.6, 0.6, 0.8);
+    for (int i = 0; i < 5; ++i) {
+        if (i >= octaves) { break; }
+        value += amplitude * vnoise(p);
+        p = m * p * 2.02 + 11.3;
+        amplitude *= 0.5;
+    }
+    return value;
+}
+
+float3 spectrum(float t) {
+    return 0.5 + 0.5 * cos(TAU * (t + float3(0.0, 0.33, 0.67)));
+}
+
+float3 pastel(float t) {
+    return mix(float3(0.76), spectrum(t), 0.55);
+}
+
+float luma(float3 c) { return dot(c, float3(0.299, 0.587, 0.114)); }
+float3 screenBlend(float3 b, float3 s) { return 1.0 - (1.0 - b) * (1.0 - s); }
+float3 overlayBlend(float3 b, float3 s) {
+    float3 lo = 2.0 * b * s;
+    float3 hi = 1.0 - 2.0 * (1.0 - b) * (1.0 - s);
+    return mix(lo, hi, step(float3(0.5), b));
+}
+float3 exclusionBlend(float3 b, float3 s) { return b + s - 2.0 * b * s; }
+
+float glarePoint(float2 uv, float2 p, float radius, float power) {
+    float d = length((uv - p) * float2(1.0, 1.12));
+    return pow(smoothstep(radius, 0.0, d), power);
+}
+
+float sparkleLayer(float2 uv, float scale, float2 pointer, float time, float seed) {
+    float2 g = uv * scale;
+    float2 cell = floor(g);
+    float2 l = fract(g) - 0.5;
+    float r = hash21(cell + seed);
+    float2 jitter = (float2(hash21(cell + seed + 3.1), hash21(cell + seed + 7.7)) - 0.5) * 0.6;
+    l -= jitter;
+    float phase = r * TAU + time * (0.8 + r * 1.4) + dot(pointer, float2(5.3, -4.1));
+    float visibility = pow(max(0.0, sin(phase)), 10.0);
+    float core = smoothstep(0.10 + r * 0.05, 0.0, length(l));
+    float cross = smoothstep(0.02, 0.0, min(abs(l.x), abs(l.y)))
+        * smoothstep(0.28, 0.02, max(abs(l.x), abs(l.y)));
+    return max(core, cross * 0.7) * visibility;
+}
+
+float stars(float2 uv, float scale, float2 pan, float time, float seed) {
+    float2 g = (uv + pan) * scale;
+    float2 cell = floor(g);
+    float2 l = fract(g) - 0.5;
+    float r = hash21(cell + seed);
+    float exists = step(0.80, r);
+    float2 jitter = (float2(hash21(cell + seed + 1.3), hash21(cell + seed + 9.2)) - 0.5) * 0.7;
+    l -= jitter;
+    float radius = mix(0.03, 0.14, hash21(cell + seed + 5.5));
+    float core = smoothstep(radius, 0.0, length(l));
+    float ray = smoothstep(0.02, 0.0, min(abs(l.x), abs(l.y)))
+        * smoothstep(radius * 3.0, 0.0, max(abs(l.x), abs(l.y)));
+    float twinkle = 0.6 + 0.4 * sin(time * 1.1 + r * TAU);
+    return exists * max(core, ray * 0.8) * twinkle;
+}
+
+float etched(float x, float width) {
+    float c = abs(fract(x) - 0.5);
+    return 1.0 - smoothstep(width, width + 0.1, c);
+}
+
+float2 resolvePointer(float2 pointer, float2 tilt) {
+    float valid = step(0.0, pointer.x) * step(0.0, pointer.y);
+    float2 fallback = clamp(float2(0.5) + tilt * 0.5, 0.0, 1.0);
+    return mix(fallback, clamp(pointer, 0.0, 1.0), valid);
+}
+
+float3 unpremulRgb(float4 c) {
+    return c.a > 0.001 ? c.rgb / c.a : float3(0.0);
+}
+
+half4 premulRgb(float3 rgb, float a) {
+    return half4(half3(clamp(rgb, 0.0, 1.0) * a), half(a));
+}
+
+float3 applyScreen(float3 src, float3 foil, float amount) {
+    float readability = 0.25 + luma(src) * 0.75;
+    return mix(src, screenBlend(src, clamp(foil, 0.0, 1.0)), clamp(amount * readability, 0.0, 1.0));
+}
+float3 applyOverlay(float3 src, float3 foil, float amount) {
+    float readability = 0.30 + luma(src) * 0.70;
+    return mix(src, overlayBlend(src, clamp(foil, 0.0, 1.0)), clamp(amount * readability, 0.0, 1.0));
+}
+float3 applyExclusion(float3 src, float3 foil, float amount) {
+    float readability = 0.25 + luma(src) * 0.75;
+    return mix(src, exclusionBlend(src, clamp(foil, 0.0, 1.0)), clamp(amount * readability, 0.0, 1.0));
+}

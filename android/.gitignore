@@ -1,0 +1,9 @@
+.gradle/
+build/
+local.properties
+.cxx/
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+cardkit/src/main/assets/shaders/

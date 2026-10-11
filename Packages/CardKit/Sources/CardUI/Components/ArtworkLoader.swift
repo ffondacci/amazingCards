@@ -35,6 +35,12 @@ public actor ArtworkLoader {
     private var assetCache: [AssetKey: CGImage] = [:]
     private var assetInFlight: [AssetKey: Task<CGImage, any Error>] = [:]
 
+    /// Mirror of every decoded asset, readable synchronously from the main
+    /// actor. A view that appears mid-animation (the pack flying to the
+    /// centre of the screen) draws its artwork on its very first frame
+    /// instead of a blank one while the actor hop resolves.
+    @MainActor private static var readyAssets: [AssetKey: CGImage] = [:]
+
     private var cache: [Key: CGImage] = [:]
     private var inFlight: [Key: Task<CGImage, any Error>] = [:]
     private let session: URLSession
@@ -70,7 +76,18 @@ public actor ArtworkLoader {
         defer { assetInFlight[key] = nil }
         let image = try await task.value
         assetCache[key] = image
+        await Self.remember(key, image)
         return image
+    }
+
+    /// An asset already decoded by any loader, or nil when it still has to
+    /// be loaded through `image(forAsset:maxPixelSize:)`.
+    @MainActor public static func readyImage(forAsset name: String, maxPixelSize: Int = 1024) -> CGImage? {
+        readyAssets[AssetKey(name: name, maxPixelSize: maxPixelSize)]
+    }
+
+    @MainActor private static func remember(_ key: AssetKey, _ image: CGImage) {
+        readyAssets[key] = image
     }
 
     /// Decodes a list of assets ahead of time (app launch, before a reveal).
@@ -83,9 +100,14 @@ public actor ArtworkLoader {
     }
 
     /// Drops every cached image (memory warning, for instance).
-    public func purge() {
+    public func purge() async {
         cache.removeAll()
         assetCache.removeAll()
+        await Self.forgetAll()
+    }
+
+    @MainActor private static func forgetAll() {
+        readyAssets.removeAll()
     }
 
     @concurrent

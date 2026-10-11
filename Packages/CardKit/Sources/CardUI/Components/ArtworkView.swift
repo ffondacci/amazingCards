@@ -18,6 +18,16 @@ public struct ArtworkView: View {
         self.artwork = artwork
         self.contentMode = contentMode
         self.maxPixelSize = maxPixelSize
+        // An asset decoded earlier is drawn on the first frame: no blank
+        // cover while the pack flies in from the carousel.
+        if let ready = Self.readyImage(for: artwork, maxPixelSize: maxPixelSize) {
+            _loaded = State(initialValue: ready)
+        }
+    }
+
+    private static func readyImage(for artwork: CardArtwork, maxPixelSize: Int) -> CGImage? {
+        guard case .asset(let name) = artwork else { return nil }
+        return ArtworkLoader.readyImage(forAsset: name, maxPixelSize: maxPixelSize)
     }
 
     public var body: some View {
@@ -56,8 +66,12 @@ public struct ArtworkView: View {
             }
         }
         .task(id: artwork) {
-            loaded = nil
             failed = false
+            if let ready = Self.readyImage(for: artwork, maxPixelSize: maxPixelSize) {
+                loaded = ready
+                return
+            }
+            loaded = nil
             do {
                 let image: CGImage
                 switch artwork {

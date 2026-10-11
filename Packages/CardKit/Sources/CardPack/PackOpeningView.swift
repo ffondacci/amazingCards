@@ -157,7 +157,6 @@ public struct PackOpeningView: View {
         let phase = model.phase
         let gone = phase == .browsing || phase == .finished
         let bodyOffset: CGFloat = gone ? size.height * 0.9 : (phase == .emerging ? height * 0.42 : 0)
-        let sealed = phase == .sealed || phase == .torn
         return TornPackView(
             design: design,
             width: width,
@@ -167,13 +166,12 @@ public struct PackOpeningView: View {
             flyAway: phase != .sealed,
             bodyOffsetY: bodyOffset,
             bodyOpacity: gone ? 0 : 1,
-            bulge: sealed ? 1 : 0,
             mouthOpen: phase == .emerging ? 1 : (gone ? 0.6 : 0)
         )
         .background {
             // Static blurred shape instead of a content shadow: the pack is
             // re-rendered on every drag event and a real shadow would be too.
-            RoundedRectangle(cornerRadius: width * 0.035, style: .continuous)
+            PackShape()
                 .fill(.black.opacity(0.55))
                 .padding(.top, height * design.stripFraction * (phase == .sealed ? 0 : 1))
                 .blur(radius: 16)

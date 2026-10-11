@@ -3,9 +3,10 @@ import CardFX
 import SwiftUI
 
 /// Everything that makes a booster look like itself. The wrapper follows the
-/// modern pocket-pack layout: a top band (brand, set code, bright seam), a
-/// full-bleed cover, and a bottom band of another colour carrying the set
-/// name on a plate. Swap a design to re-skin the pack.
+/// modern pocket-pack layout: a tall pouch with crimped ends, a thick top
+/// band (brand, set code, double seam), a full-bleed cover carrying the set
+/// name on a plate, and a thin bottom band of another colour. Swap a design
+/// to re-skin the pack.
 public struct PackDesign: Hashable, Sendable {
     /// Set name printed big over the bottom of the cover ("GENETIC APEX").
     public var title: String
@@ -49,8 +50,8 @@ public struct PackDesign: Hashable, Sendable {
         prismIntensity: Double = 0.2,
         emblemSymbol: String = "sparkles",
         cardCount: Int = 5,
-        stripFraction: CGFloat = 0.14,
-        bottomFraction: CGFloat = 0.13
+        stripFraction: CGFloat = 0.175,
+        bottomFraction: CGFloat = 0.06
     ) {
         self.title = title
         self.subtitle = subtitle
@@ -68,6 +69,8 @@ public struct PackDesign: Hashable, Sendable {
         self.bottomFraction = bottomFraction
     }
 
-    /// Packs share the card ratio so the cards stay hidden behind them until opened.
-    public static let aspectRatio: CGFloat = 63.0 / 88.0
+    /// Width over height of the pouch: taller than a card, like a pocket pack.
+    /// `PackLayout` sizes the cards from the pack, so they stay hidden behind
+    /// it until it opens.
+    public static let aspectRatio: CGFloat = 0.58
 }

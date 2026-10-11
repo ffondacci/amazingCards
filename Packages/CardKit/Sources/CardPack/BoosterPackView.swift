@@ -3,21 +3,16 @@ import CardFX
 import CardUI
 import SwiftUI
 
-/// Printed wrapper of a booster in the pocket-pack style: top band with the
-/// brand and set code, bright seam, full-bleed cover with a foil sheen, big
-/// set name and a name plate over the bottom band. Purely visual;
-/// `PackOpeningView` adds the gesture.
+/// Printed wrapper of a booster in the pocket-pack style: a tall pouch with
+/// crimped ends, a thick top band with the brand and the set code over a
+/// double seam, a full-bleed cover with a foil sheen, the big set name and a
+/// name plate just above a thin bottom band. Purely visual; `PackOpeningView`
+/// adds the gesture.
 public struct BoosterPackView: View {
     public var design: PackDesign
-    /// How much the cards inside push the wrapper out, 0…1.
-    public var bulge: Double
-    /// Strength of the paper shading (folds, wrinkles, crimps); 0 = flat print.
-    public var paperIntensity: Double
 
-    public init(design: PackDesign, bulge: Double = 1, paperIntensity: Double = 1) {
+    public init(design: PackDesign) {
         self.design = design
-        self.bulge = bulge
-        self.paperIntensity = paperIntensity
     }
 
     public var body: some View {
@@ -26,7 +21,7 @@ public struct BoosterPackView: View {
             let h = proxy.size.height
             let top = h * design.stripFraction
             let bottom = h * design.bottomFraction
-            let radius = w * 0.035
+            let seal = h * 0.028
             ZStack(alignment: .top) {
                 // Full-bleed cover with a metallic sheen.
                 ArtworkView(design.cover, contentMode: .fill)
@@ -52,12 +47,17 @@ public struct BoosterPackView: View {
                     bottomBand(width: w, height: bottom)
                 }
 
-                // Seam: bright line where the top band is sealed.
-                Rectangle()
-                    .fill(Color(design.accent))
-                    .frame(width: w, height: max(w * 0.008, 1.5))
-                    .shadow(color: Color(design.accent).opacity(0.9), radius: w * 0.012)
-                    .offset(y: top)
+                // Seam: a bright double line where the top band is sealed.
+                VStack(spacing: max(w * 0.006, 1)) {
+                    Rectangle()
+                        .fill(Color(design.accent))
+                        .frame(width: w, height: max(w * 0.008, 1.5))
+                        .shadow(color: Color(design.accent).opacity(0.9), radius: w * 0.012)
+                    Rectangle()
+                        .fill(.white.opacity(0.85))
+                        .frame(width: w, height: max(w * 0.004, 1))
+                }
+                .offset(y: top)
 
                 // Set name and plate over the bottom of the cover.
                 VStack(spacing: h * 0.008) {
@@ -86,22 +86,21 @@ public struct BoosterPackView: View {
                     }
                 }
                 .frame(width: w)
-                .padding(.top, h - bottom - h * 0.165)
+                .padding(.top, h - bottom - h * 0.19)
 
-                // Sealed edges: tiny crimps at the very top and bottom.
-                VStack {
-                    CrimpBand(teeth: 30).fill(.black.opacity(0.35)).frame(height: h * 0.014)
-                    Spacer()
-                    CrimpBand(teeth: 30).fill(.black.opacity(0.35)).frame(height: h * 0.014).rotationEffect(.degrees(180))
+                // Crimped seals pressed into both ends of the pouch.
+                VStack(spacing: 0) {
+                    SealBand(color: Color(design.topColor)).frame(width: w, height: seal)
+                    Spacer(minLength: 0)
+                    SealBand(color: Color(design.bottomColor)).frame(width: w, height: seal).rotationEffect(.degrees(180))
                 }
             }
             .frame(width: w, height: h)
             .cardEffect(.holo(.prism, intensity: design.prismIntensity), isEnabled: design.prismIntensity > 0.005)
-            .cardEffect(.paper(bulge: bulge, crimp: h * 0.014, intensity: paperIntensity), isEnabled: paperIntensity > 0.01)
-            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .clipShape(PackShape())
             .overlay {
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(.white.opacity(0.25), lineWidth: max(w * 0.004, 0.8))
+                PackShape()
+                    .stroke(.white.opacity(0.25), lineWidth: max(w * 0.004, 0.8))
             }
         }
         .aspectRatio(PackDesign.aspectRatio, contentMode: .fit)
@@ -115,36 +114,43 @@ public struct BoosterPackView: View {
             )
             EmblemPattern(symbol: design.emblemSymbol, spacing: w * 0.16)
                 .foregroundStyle(.white.opacity(0.08))
-            HStack(alignment: .center, spacing: w * 0.03) {
-                Image(systemName: design.emblemSymbol)
-                    .font(.system(size: height * 0.42, weight: .bold))
-                    .foregroundStyle(Color(design.accent))
-                    .shadow(color: Color(design.accent).opacity(0.8), radius: height * 0.1)
-                VStack(alignment: .leading, spacing: 0) {
+            // Brand block centred like a logo, the set code in the corner.
+            VStack(spacing: height * 0.02) {
+                HStack(alignment: .center, spacing: w * 0.025) {
+                    Image(systemName: design.emblemSymbol)
+                        .font(.system(size: height * 0.3, weight: .bold))
+                        .foregroundStyle(Color(design.accent))
+                        .shadow(color: Color(design.accent).opacity(0.8), radius: height * 0.08)
                     Text(design.brand)
-                        .font(.system(size: height * 0.26, weight: .black, design: .rounded))
+                        .font(.system(size: height * 0.21, weight: .black, design: .rounded))
                         .tracking(height * 0.02)
-                    Text("\(design.cardCount) CARDS")
-                        .font(.system(size: height * 0.18, weight: .bold, design: .rounded))
-                        .opacity(0.75)
                 }
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                Spacer(minLength: 0)
-                if let setCode = design.setCode {
-                    Text(setCode)
-                        .font(.system(size: height * 0.24, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, height * 0.16)
-                        .padding(.vertical, height * 0.07)
-                        .background(RoundedRectangle(cornerRadius: height * 0.12).fill(.black.opacity(0.55)))
-                        .overlay(RoundedRectangle(cornerRadius: height * 0.12).stroke(.white.opacity(0.5), lineWidth: 1))
-                }
+                Text("\(design.cardCount) CARDS")
+                    .font(.system(size: height * 0.12, weight: .bold, design: .rounded))
+                    .tracking(height * 0.03)
+                    .opacity(0.8)
             }
-            .padding(.horizontal, w * 0.06)
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .padding(.horizontal, w * 0.2)
+            .padding(.top, height * 0.16)
+            .shadow(color: .black.opacity(0.35), radius: height * 0.03, y: height * 0.02)
         }
         .frame(width: w, height: height)
+        .overlay(alignment: .topTrailing) {
+            if let setCode = design.setCode {
+                Text(setCode)
+                    .font(.system(size: height * 0.17, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, height * 0.12)
+                    .padding(.vertical, height * 0.05)
+                    .background(RoundedRectangle(cornerRadius: height * 0.08).fill(.black.opacity(0.6)))
+                    .overlay(RoundedRectangle(cornerRadius: height * 0.08).stroke(.white.opacity(0.5), lineWidth: 1))
+                    .padding(.top, height * 0.24)
+                    .padding(.trailing, w * 0.04)
+            }
+        }
     }
 
     private func bottomBand(width w: CGFloat, height: CGFloat) -> some View {
@@ -159,8 +165,74 @@ public struct BoosterPackView: View {
         .frame(width: w, height: height)
         .mask {
             // Soft top edge so the band blends into the cover.
-            LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.35)], startPoint: .top, endPoint: .bottom)
+            LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.3)], startPoint: .top, endPoint: .bottom)
         }
+    }
+}
+
+/// Silhouette of a sealed pouch: flat crimped ends, long sides bowing out a
+/// little where the cards push, small rounded corners.
+public struct PackShape: Shape {
+    /// How far each long side bows out, as a fraction of the width.
+    public var bow: CGFloat
+    /// Corner radius as a fraction of the width.
+    public var corner: CGFloat
+
+    public init(bow: CGFloat = 0.014, corner: CGFloat = 0.03) {
+        self.bow = bow
+        self.corner = corner
+    }
+
+    public func path(in rect: CGRect) -> Path {
+        let inset = rect.width * bow
+        let r = rect.width * corner
+        let left = rect.minX + inset
+        let right = rect.maxX - inset
+        var path = Path()
+        path.move(to: CGPoint(x: left + r, y: rect.minY))
+        path.addLine(to: CGPoint(x: right - r, y: rect.minY))
+        path.addQuadCurve(to: CGPoint(x: right, y: rect.minY + r), control: CGPoint(x: right, y: rect.minY))
+        // A quadratic curve peaks halfway to its control point, so a control
+        // at `inset` beyond the edge brings the side exactly to the bounds.
+        path.addQuadCurve(to: CGPoint(x: right, y: rect.maxY - r), control: CGPoint(x: rect.maxX + inset, y: rect.midY))
+        path.addQuadCurve(to: CGPoint(x: right - r, y: rect.maxY), control: CGPoint(x: right, y: rect.maxY))
+        path.addLine(to: CGPoint(x: left + r, y: rect.maxY))
+        path.addQuadCurve(to: CGPoint(x: left, y: rect.maxY - r), control: CGPoint(x: left, y: rect.maxY))
+        path.addQuadCurve(to: CGPoint(x: left, y: rect.minY + r), control: CGPoint(x: rect.minX - inset, y: rect.midY))
+        path.addQuadCurve(to: CGPoint(x: left + r, y: rect.minY), control: CGPoint(x: left, y: rect.minY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// Crimped seal of a pouch end: a lighter strip pressed with fine vertical
+/// ridges, its inner edge cut in a sawtooth. Rotate it for the bottom.
+struct SealBand: View {
+    var color: Color
+
+    var body: some View {
+        Canvas { context, size in
+            let base = Path(CGRect(origin: .zero, size: size))
+            context.fill(base, with: .color(color))
+            context.fill(base, with: .color(.white.opacity(0.18)))
+            // Ridges: alternating light and dark hairlines.
+            let step = max(size.width * 0.018, 2)
+            var x: CGFloat = step / 2
+            var dark = false
+            while x < size.width {
+                let line = Path(CGRect(x: x, y: 0, width: max(step * 0.3, 0.6), height: size.height))
+                context.fill(line, with: .color(dark ? .black.opacity(0.28) : .white.opacity(0.22)))
+                x += step
+                dark.toggle()
+            }
+            // Shadow along the sawtooth edge.
+            let teeth = max(Int(size.width / (step * 2)), 8)
+            var edge = CrimpBand(teeth: teeth).path(in: CGRect(origin: .zero, size: size))
+            edge = edge.applying(CGAffineTransform(translationX: 0, y: size.height * 0.3))
+            context.fill(edge, with: .color(.black.opacity(0.22)))
+        }
+        .mask(CrimpBand(teeth: 40))
+        .allowsHitTesting(false)
     }
 }
 

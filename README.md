@@ -15,7 +15,7 @@ engineering guidelines.
 | `CardCore` | Pure models: `Card`, `CardContent` (creature / artist / painting / celestial), `Rarity`, `CardFinish`, `BoosterPack`, `BoosterGenerator`, `SeededRandomNumberGenerator`. No UI. |
 | `CardFX` | Metal shaders + SwiftUI modifiers: `CardEffect`, `HoloStyle`, `cardMotion(...)` (apply it *outside* the effects), `CardMotionStage`, `TiltTransform`, `DeviceMotionSource`, animatable `cardSweep` / `cardDissolve` / `cardRipple`, `renderScale(_:)` for cheap backgrounds, `CardFXShaders.warmUp(first:)`. |
 | `CardUI` | `CardView` (picks a template per content), `CardMetrics` (size-relative layout), `FinishRecipe`, `CardTheme`, `CardBackView`, `FlippableCardView`, `InteractiveCardView`, `CardFanView`, `ArtworkView` + `ArtworkLoader` actor, `cardIdleFloat`, `cardShake`, `.cardDissolve()` transition. |
-| `CardPack` | `PackLayout` + `.packLayout(_:)` (every size of the pack flow as fractions: `.standard`, `.compact`, `.large`), `PackDesign` (pocket-pack layout: top band, seam, full-bleed cover, bottom band, foil and prism strength), `BoosterPackView` (lit paper wrapper: folds, wrinkles, crimps, bulge), `PackCarouselView`, `tearable(...)` + `TearState` + `TornEdgeShape`, `TornPackView` (strip rolls up with `ck_curl`, sparks and paper flecks with `ck_sparks`, tension under the finger, bag mouth with `ck_mouth`), `CardSwipeStack`, `PackOpeningView` + `PackOpeningModel`, `PackSoundscape` + `PackSoundSet` (your own sound files for the tear), `PackWarmUpView`. |
+| `CardPack` | `PackLayout` + `.packLayout(_:)` (every size of the pack flow as fractions: `.standard`, `.compact`, `.large`), `PackDesign` (pocket-pack layout: thick top band, double seam, full-bleed cover, thin bottom band, foil and prism strength), `BoosterPackView` (tall pouch with crimped seals, `PackShape` silhouette, flat glossy print), `PackCarouselView`, `tearable(...)` + `TearState` + `TornEdgeShape`, `TornPackView` (strip rolls up with `ck_curl`, sparks and paper flecks with `ck_sparks`, tension under the finger, bag mouth with `ck_mouth`), `CardSwipeStack`, `PackOpeningView` + `PackOpeningModel`, `PackSoundscape` + `PackSoundSet` (your own sound files for the tear), `PackWarmUpView`. |
 
 Dependency direction: `CardCore ← CardFX ← CardUI ← CardPack`.
 
@@ -59,34 +59,33 @@ paper, corner radius, typography and the card back.
 ## Booster flow
 
 Sizes come from one `PackLayout` (fractions of the available space plus an
-optional cap), set once for the app with `.packLayout(.large)`; the defaults
-give big cards and a pack a hair larger than them.
+optional cap), set once for the app with `.packLayout(.large)`. The pack is
+sized first (as wide as the cards may be, no taller than its height
+fraction) and the cards derive from it, a hair narrower, so the deck stays
+hidden behind the sealed pack.
 `PackCarouselView` presents sealed packs; the centred one opens.
 `PackOpeningView(pack:design:)`: tear the top band (drag from an edge). The
 pack is rendered as real pieces while tearing (`TornPackView`): the torn part
 of the band rolls up into a scroll that travels with the finger (`ck_curl`,
 inner foil face with the mirrored print, cylinder shading, cast shadow) and
 flies off at the break, while `ck_sparks` throws a hot core, an ember trail,
-flying sparks and paper flecks from the cutting point. The wrapper is
-crumpled paper (`ck_paper`, a layer effect): a field of flat facets, each with
-its own slope, blended across rounded shoulders at the creases; large crumples
-come from a handful of seed points and wrinkles from two octaves of a sparse
-cellular grid. A grazing light that follows the tilt darkens every facet
-turning away from it, each facet returns its own sheen, the print bends gently
-with the large facets, sharp creases facing the light leave a whitened mark,
-and crimp bumps plus the bulge of the cards (deflating once they leave) sit on
-top. The paper tenses under the finger and ripples ahead of the cut
-(`ck_paperTension`), and the torn body opens like a bag mouth while the cards
-slide out (`ck_mouth`). The facet model is adapted from Paper Design's
-paper-texture shader (Apache-2.0).
+flying sparks and flecks from the cutting point, and the torn body opens
+like a bag mouth while the cards slide out (`ck_mouth`). The wrapper itself
+is a flat glossy print with a foil sheen and a faint prism; the crumpled
+paper (`ck_paper`, facets, sheen and crease marks, adapted from Paper
+Design's paper-texture shader, Apache-2.0) and the paper tension under a
+finger (`ck_paperTension`) stay available as effects for any view.
 `PackSoundscape` plays three optional sound files (`PackSoundSet`: crinkle
 on grab, a tearing loop whose volume follows the finger, a whoosh at the
 break); none are bundled, pass your own to `PackOpeningView(sounds:)`. One continuous deck then rises out
 of the pack, settles in the centre and flips its top card; every swipe flips
 the next one. The pack itself flies from the frame it was tapped in
 (`arrivesFrom`, reported by `PackCarouselView`). Foil cards react to the finger, rare pulls get a burst behind them.
-Packs share the card ratio, so nothing shows until the pack opens.
-`PackDesign` changes the wrapper (colours, foil hue, cover, emblem). The
+Packs are tall pouches (`PackDesign.aspectRatio`, 0.58) in the pocket-pack
+proportions: a top band of about a sixth of the height, a bottom band of
+a sixteenth, crimped seals at both ends and sides that bow out a little
+(`PackShape`). `PackDesign` changes the wrapper (colours, foil hue, cover,
+emblem, band fractions). The
 generic `tearable` modifier (any view, any direction) uses the `ck_tear`
 shader instead.
 

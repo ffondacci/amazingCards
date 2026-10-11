@@ -48,9 +48,8 @@ public enum CardFXShaders {
 
     /// Effects a pack opening draws: compile these first.
     public static let packOpeningEffects: [CardEffect] = [
-        .starfield(), .nebula(palette: .violet), .foilWrap(), .glare(), .paper(),
-        .sparks(origin: .zero, direction: CGPoint(x: 1, y: 0)),
-        .paperTension(point: .zero, front: 0, direction: 1), .burst(),
+        .starfield(), .nebula(palette: .violet), .foilWrap(), .glare(),
+        .holo(.prism), .sparks(origin: .zero, direction: CGPoint(x: 1, y: 0)), .burst(),
     ]
 
     private static func compile(_ effects: [CardEffect], size: CGSize, parallel: Bool) async {

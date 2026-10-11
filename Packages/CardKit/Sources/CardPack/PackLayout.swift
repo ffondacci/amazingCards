@@ -6,9 +6,11 @@ import SwiftUI
 /// environment. Every value is a fraction so the same layout fits an
 /// iPhone, an iPad or a split-view window.
 public struct PackLayout: Hashable, Sendable {
-    /// Width of the cards in the opening, as a fraction of the available width.
+    /// Width the cards may use in the opening, as a fraction of the available width.
     public var cardWidthFraction: CGFloat
-    /// Height the cards may use in the opening, as a fraction of the available height.
+    /// Height the sealed pack may use in the opening, as a fraction of the
+    /// available height. The pack is taller than a card, so this is what
+    /// bounds the card size on most phones.
     public var cardHeightFraction: CGFloat
     /// Width of the sealed pack relative to the card width (a hair larger
     /// keeps the deck hidden until the pack opens).
@@ -22,7 +24,7 @@ public struct PackLayout: Hashable, Sendable {
 
     public init(
         cardWidthFraction: CGFloat = 0.8,
-        cardHeightFraction: CGFloat = 0.68,
+        cardHeightFraction: CGFloat = 0.74,
         packScale: CGFloat = 1.05,
         carouselPackWidthFraction: CGFloat = 0.58,
         carouselPackHeightFraction: CGFloat = 0.68,
@@ -49,16 +51,18 @@ public struct PackLayout: Hashable, Sendable {
         carouselPackWidthFraction: 0.68, carouselPackHeightFraction: 0.76, maxCardWidth: nil
     )
 
-    /// Card width for an available size.
+    /// Card width for an available size: always a hair narrower than the
+    /// sealed pack, so the deck stays hidden until the pack opens.
     public func cardWidth(in size: CGSize) -> CGFloat {
-        var width = min(size.width * cardWidthFraction, size.height * cardHeightFraction * CardMetrics.aspectRatio)
-        if let maxCardWidth { width = min(width, maxCardWidth) }
-        return max(width, 1)
+        packSize(in: size).width / packScale
     }
 
-    /// Pack size for an available size (same ratio as the cards).
+    /// Pack size for an available size: as wide as the cards allow, no
+    /// taller than `cardHeightFraction` of the height.
     public func packSize(in size: CGSize) -> CGSize {
-        let width = cardWidth(in: size) * packScale
+        var width = min(size.width * cardWidthFraction * packScale, size.height * cardHeightFraction * PackDesign.aspectRatio)
+        if let maxCardWidth { width = min(width, maxCardWidth * packScale) }
+        width = max(width, 1)
         return CGSize(width: width, height: width / PackDesign.aspectRatio)
     }
 

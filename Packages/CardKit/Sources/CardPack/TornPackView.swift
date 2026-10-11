@@ -20,8 +20,6 @@ struct TornPackView: View {
     /// Vertical offset and opacity of the body (used when the pack drops).
     let bodyOffsetY: CGFloat
     let bodyOpacity: Double
-    /// Bulge of the cards inside (1 sealed, 0 once they left).
-    var bulge: Double = 1
     /// Opening of the torn body's mouth while the cards slide out, 0…1.
     var mouthOpen: Double = 0
 
@@ -55,28 +53,6 @@ struct TornPackView: View {
                 .modifier(MouthEffectModifier(open: mouthOpen, lineY: lineY, depth: height * 0.3))
                 .offset(y: bodyOffsetY)
                 .opacity(bodyOpacity)
-
-            // Paper tension under the finger and ahead of the cut while
-            // tearing. Only a band around the cut: the dent and the ripples
-            // never reach farther, and the shader costs per pixel.
-            if tear.isActive, !flyAway {
-                let bandHeight = lineY + 110
-                Color.clear
-                    .frame(width: width, height: height)
-                    .overlay(alignment: .top) {
-                        Rectangle()
-                            .fill(.clear)
-                            .frame(width: width, height: bandHeight)
-                            .cardEffect(.paperTension(
-                                point: CGPoint(x: rollCenterX, y: lineY),
-                                front: rollCenterX,
-                                direction: fromTrailing ? -1 : 1,
-                                strength: 1
-                            ))
-                            .cardMotionIdle(animates: true)
-                    }
-                    .allowsHitTesting(false)
-            }
 
             // Shadow of the roll on the body, just under the cut.
             if front > 0.5, !flyAway {
@@ -172,7 +148,7 @@ struct TornPackView: View {
     /// curled on every drag event, and compositing a cached texture is
     /// far cheaper than re-rendering text, canvases and shaders.
     private var pack: some View {
-        BoosterPackView(design: design, bulge: bulge)
+        BoosterPackView(design: design)
             .frame(width: width, height: height)
             .cardMotionIdle(animates: false)
             .drawingGroup()
@@ -379,7 +355,7 @@ struct TornPackMask: Shape {
     state.isTorn = true
     return ZStack {
         Color(white: 0.08)
-        TornPackView(design: design, width: width, height: height, tear: state, roughness: 5, flyAway: true, bodyOffsetY: 0, bodyOpacity: 1, bulge: 0, mouthOpen: 1)
+        TornPackView(design: design, width: width, height: height, tear: state, roughness: 5, flyAway: true, bodyOffsetY: 0, bodyOpacity: 1, mouthOpen: 1)
     }
     .frame(width: 420, height: 600)
 }

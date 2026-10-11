@@ -15,9 +15,10 @@ engineering guidelines.
 | `CardCore` | Pure models: `Card`, `CardContent` (creature / artist / painting / celestial), `Rarity`, `CardFinish`, `BoosterPack`, `BoosterGenerator`, `SeededRandomNumberGenerator`. No UI. |
 | `CardFX` | Metal shaders + SwiftUI modifiers: `CardEffect`, `HoloStyle`, `cardMotion(...)` (apply it *outside* the effects), `CardMotionStage`, `TiltTransform`, `DeviceMotionSource`, animatable `cardSweep` / `cardDissolve` / `cardRipple`, `renderScale(_:)` for cheap backgrounds, `CardFXShaders.warmUp(first:)`. |
 | `CardUI` | `CardView` (picks a template per content), `CardMetrics` (size-relative layout), `FinishRecipe`, `CardTheme`, `CardBackView`, `FlippableCardView`, `InteractiveCardView`, `CardFanView`, `ArtworkView` + `ArtworkLoader` actor, `cardIdleFloat`, `cardShake`, `.cardDissolve()` transition. |
-| `CardPack` | `PackLayout` + `.packLayout(_:)` (every size of the pack flow as fractions: `.standard`, `.compact`, `.large`), `PackDesign` (pocket-pack layout: thick top band, double seam, full-bleed cover, thin bottom band, foil and prism strength), `BoosterPackView` (tall pouch with crimped seals, `PackShape` silhouette, flat glossy print), `PackCarouselView`, `tearable(...)` + `TearState` + `TornEdgeShape`, `TornPackView` (strip rolls up with `ck_curl`, sparks and paper flecks with `ck_sparks`, tension under the finger, bag mouth with `ck_mouth`), `CardSwipeStack`, `PackOpeningView` + `PackOpeningModel`, `PackSoundscape` + `PackSoundSet` (your own sound files for the tear), `PackWarmUpView`. |
+| `CardStage` | Metal 3D stage (`StageView`, `StageScene`, `StageSettings`): foil pouches on a carousel in an analytic studio (puff, wrinkles, crimped seals, holo foil, clear coat, floor reflection, shadow, shine sweep), the six openings (`OpeningStyle`: tear, rip, zip, melt, roll, lid), the deal of the cards with the rare one revealed last, flakes, sparks, smoke and the aura. Pictures come in as `PackSkin` / `CardSkin`. |
+| `CardPack` | `PackStageView` (the stage printed with `PackDesign`s, dealing our cards), `PackPrints` (renders pack and card pictures for the stage), `PackBackView`, `PackLayout` + `.packLayout(_:)` (every size of the pack flow as fractions: `.standard`, `.compact`, `.large`), `PackDesign` (pocket-pack layout: thick top band, double seam, full-bleed cover, thin bottom band, foil and prism strength), `BoosterPackView` (tall pouch with crimped seals, `PackShape` silhouette, flat glossy print), `PackCarouselView`, `tearable(...)` + `TearState` + `TornEdgeShape`, `TornPackView` (strip rolls up with `ck_curl`, sparks and paper flecks with `ck_sparks`, tension under the finger, bag mouth with `ck_mouth`), `CardSwipeStack`, `PackOpeningView` + `PackOpeningModel`, `PackSoundscape` + `PackSoundSet` (your own sound files for the tear), `PackWarmUpView`. |
 
-Dependency direction: `CardCore ← CardFX ← CardUI ← CardPack`.
+Dependency direction: `CardCore ← CardFX ← CardUI ← CardPack`, with `CardStage` (`CardCore` only) under `CardPack`.
 
 ## Effects (`CardEffect`)
 
@@ -58,36 +59,35 @@ paper, corner radius, typography and the card back.
 
 ## Booster flow
 
-Sizes come from one `PackLayout` (fractions of the available space plus an
-optional cap), set once for the app with `.packLayout(.large)`. The pack is
-sized first (as wide as the cards may be, no taller than its height
-fraction) and the cards derive from it, a hair narrower, so the deck stays
-hidden behind the sealed pack.
-`PackCarouselView` presents sealed packs; the centred one opens.
-`PackOpeningView(pack:design:)`: tear the top band (drag from an edge). The
-pack is rendered as real pieces while tearing (`TornPackView`): the torn part
-of the band rolls up into a scroll that travels with the finger (`ck_curl`,
-inner foil face with the mirrored print, cylinder shading, cast shadow) and
-flies off at the break, while `ck_sparks` throws a hot core, an ember trail,
-flying sparks and flecks from the cutting point, and the torn body opens
-like a bag mouth while the cards slide out (`ck_mouth`). The wrapper itself
-is a flat glossy print with a foil sheen and a faint prism; the crumpled
-paper (`ck_paper`, facets, sheen and crease marks, adapted from Paper
-Design's paper-texture shader, Apache-2.0) and the paper tension under a
-finger (`ck_paperTension`) stay available as effects for any view.
-`PackSoundscape` plays three optional sound files (`PackSoundSet`: crinkle
-on grab, a tearing loop whose volume follows the finger, a whoosh at the
-break); none are bundled, pass your own to `PackOpeningView(sounds:)`. One continuous deck then rises out
-of the pack, settles in the centre and flips its top card; every swipe flips
-the next one. The pack itself flies from the frame it was tapped in
-(`arrivesFrom`, reported by `PackCarouselView`). Foil cards react to the finger, rare pulls get a burst behind them.
-Packs are tall pouches (`PackDesign.aspectRatio`, 0.58) in the pocket-pack
-proportions: a top band of about a sixth of the height, a bottom band of
-a sixteenth, crimped seals at both ends and sides that bow out a little
-(`PackShape`). `PackDesign` changes the wrapper (colours, foil hue, cover,
-emblem, band fractions). The
-generic `tearable` modifier (any view, any direction) uses the `ck_tear`
-shader instead.
+The booster experience is the 3D stage of `CardStage`, driven by
+`PackStageView(designs:settings:selection:preparedCards:onPhase:onOpen:)`:
+every `PackDesign` is printed (front, back and foil masks, rendered by
+`PackPrints` from `BoosterPackView` and `PackBackView`) on a foil pouch
+standing on a carousel in a daylight studio (a cool grey sweep with a pool of
+light on the floor) or a night room (the room is drawn by the stage too, with
+the light rays and halo behind the dealt cards, the dim around the rare one
+and the flash of its reveal). Drag a pack to turn
+it, drag beside it to browse, tap the front one: it flies in front of the
+camera, waits for the swipe (or opens by itself), comes apart in the chosen
+style (`StageSettings.opening`), drops away while the cards rise out of its
+mouth, and deals them one tap at a time, the rare one face down with a halo,
+then revealed with a flash and a burst of golden flakes; a last tap fans the
+five out, another puts them away. `onOpen` hands back the `CardSkin`s to deal
+(our `CardView` fronts and `CardBackView` backs, rendered by
+`PackPrints.cardSkins(for:)`); `preparedCards` lets the host upload the next
+deal while the carousel idles, so the tap never stalls. Every dial is in
+`StageSettings` (packs, spacing, depth, fov, tilt, float, reflection, shadow,
+lighting, puff, wrinkles, foil, holo, gloss, shine, opening, speed, hold,
+autoOpen, rareLast, guide, hints, particles, rays). The look and the
+choreography follow MetalForge's Booster (metalforge.xyz/booster) frame for
+frame; the implementation (Metal renderer, analytic room, procedural pouch
+and wrinkle map, CPU particles) is original.
+
+The 2D bricks of the previous flow stay available: `PackOpeningView`,
+`TornPackView` (strip rolling up with `ck_curl`, sparks with `ck_sparks`, bag
+mouth with `ck_mouth`), `CardSwipeStack`, the generic `tearable` modifier
+(`ck_tear`), `PackLayout` for their sizes, `PackSoundscape` + `PackSoundSet`
+for sound files, `PackWarmUpView`.
 
 ## Build, run, test
 

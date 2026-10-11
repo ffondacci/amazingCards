@@ -30,9 +30,5 @@ struct RootView: View {
                 FrameRateOverlay()
             }
         }
-        .background {
-            // Exercises the opening pipeline once so the first tap is smooth.
-            PackWarmUpView(design: BoosterDemoView.designs[0], sampleCards: SampleLibrary.all)
-        }
     }
 }

@@ -1,20 +1,27 @@
 import CardCore
 import CardPack
+import CardStage
 import CardUI
+import ImageIO
 import SwiftUI
 
-/// Pack-opening demo: a carousel of sealed packs, tap the centred one to open
-/// it, swipe through the cards, come back for another.
+/// Pack-opening demo: the 3D studio of sealed packs; tap the front one to
+/// open it, tap through the cards, come back for another.
 struct BoosterDemoView: View {
-    private enum Stage: Equatable {
-        case choosing
-        case opening(BoosterPack, from: CGRect)
-    }
-
-    @State private var stage: Stage = .choosing
     @State private var designIndex = 0
     @State private var seed: UInt64 = 1
     @State private var opened: [Card] = []
+    @State private var prints = PackPrints()
+    @State private var phase: StagePhase = .idle
+    /// The next pack and its pictures, prepared while the carousel idles.
+    @State private var nextDeal: (pack: BoosterPack, skins: [CardSkin])?
+    @State private var dealt = 0
+    @State private var night = false
+    /// `-captureAfter 8` saves the stage frame to Documents/capture.png after 8 s
+    /// (validation on a device without a screenshot tool).
+    private let captureAfter = UserDefaults.standard.double(forKey: "captureAfter")
+    /// `-openAfter 2` opens the front pack by itself after 2 s (validation without a finger).
+    private let openAfter = UserDefaults.standard.double(forKey: "openAfter")
 
     static let designs: [PackDesign] = [
         PackDesign(
@@ -56,70 +63,82 @@ struct BoosterDemoView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                switch stage {
-                case .choosing:
-                    chooser
-                        .transition(.opacity.animation(.easeOut(duration: 0.18)))
-                case .opening(let pack, let frame):
-                    PackOpeningView(pack: pack, design: design, arrivesFrom: frame) { cards in
-                        opened.append(contentsOf: cards)
+            ZStack(alignment: .top) {
+                PackStageView(designs: Self.designs, settings: StageSettings(lighting: night ? .night : .studio), selection: $designIndex, preparedCards: nextDeal?.skins ?? [], capturable: captureAfter > 0, onPhase: { phase = $0 }, onScene: scheduleCapture) { index in
+                    designIndex = index
+                    let deal: (pack: BoosterPack, skins: [CardSkin])
+                    if let ready = nextDeal {
+                        deal = ready
+                    } else {
+                        let pack = newPack()
+                        deal = (pack, prints.cardSkins(for: pack.cards))
                     }
-                    .id(pack.id)
-                    .transition(.identity)
+                    nextDeal = nil
+                    dealt += 1
+                    opened.append(contentsOf: deal.pack.cards)
+                    return deal.skins
+                }
+                .task(id: dealt) {
+                    await prints.prepareCards(SampleLibrary.boosterPool)
+                    guard !Task.isCancelled, nextDeal == nil else { return }
+                    let pack = newPack()
+                    let skins = await prints.cardSkins(for: pack.cards)
+                    if !Task.isCancelled, !skins.isEmpty { nextDeal = (pack, skins) }
+                }
+
+                if phase == .idle {
+                    VStack(spacing: 6) {
+                        Text(design.title.uppercased())
+                            .font(.system(.title, design: .rounded).weight(.black))
+                            .foregroundStyle(night ? .white : Color(white: 0.12))
+                        Text("\(design.cardCount) cards · tap the pack to open it")
+                            .font(.footnote)
+                            .foregroundStyle(night ? .white.opacity(0.7) : Color(white: 0.35))
+                        if !opened.isEmpty {
+                            Text("\(opened.count) cards collected")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(night ? .white.opacity(0.7) : Color(white: 0.35))
+                        }
+                    }
+                    .padding(.top, 8)
+                    .transition(.opacity)
                 }
             }
-            .animation(.spring(response: 0.7, dampingFraction: 0.82), value: stage)
+            .animation(.easeInOut(duration: 0.3), value: designIndex)
+            .animation(.easeInOut(duration: 0.3), value: phase)
+            .navigationTitle("Booster")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar {
-                if case .opening = stage {
+                if phase == .idle {
                     ToolbarItem(placement: .topBarLeading) {
                         Button {
-                            stage = .choosing
+                            night.toggle()
                         } label: {
-                            Label("Packs", systemImage: "chevron.left")
+                            Label(night ? "Studio" : "Night", systemImage: night ? "sun.max" : "moon.stars")
                         }
                     }
                 }
             }
-            .navigationTitle("Booster")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.hidden, for: .navigationBar)
         }
     }
 
-    /// Carousel on a background that takes the colours of the centred pack,
-    /// top and bottom bands included.
-    private var chooser: some View {
-        ZStack {
-            VStack(spacing: 0) {
-                Color(design.topColor).opacity(0.55)
-                    .frame(height: 140)
-                Color(white: 0.06)
-                Color(design.bottomColor).opacity(0.7)
-                    .frame(height: 140)
+    private func scheduleCapture(_ scene: StageScene) {
+        if openAfter > 0 {
+            Task {
+                try? await Task.sleep(for: .seconds(openAfter))
+                scene.open(scene.frontIndex)
             }
-            .ignoresSafeArea()
-            .animation(.easeInOut(duration: 0.4), value: designIndex)
-
-            VStack(spacing: 12) {
-                Text(design.title.uppercased())
-                    .font(.system(.title, design: .rounded).weight(.black))
-                    .foregroundStyle(.white)
-                Text("\(design.cardCount) cards · tap the pack to open it")
-                    .font(.footnote)
-                    .foregroundStyle(.white.opacity(0.7))
-                PackCarouselView(designs: Self.designs, selection: $designIndex) { index, frame in
-                    designIndex = index
-                    stage = .opening(newPack(), from: frame)
-                }
-                if !opened.isEmpty {
-                    Text("\(opened.count) cards collected")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.7))
-                }
+        }
+        guard captureAfter > 0 else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(captureAfter))
+            scene.captureRequest = { image in
+                let url = URL.documentsDirectory.appending(path: "capture.png")
+                guard let destination = CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil) else { return }
+                CGImageDestinationAddImage(destination, image, nil)
+                CGImageDestinationFinalize(destination)
             }
-            .padding(.top, 40)
-            .padding(.bottom, 24)
         }
     }
 

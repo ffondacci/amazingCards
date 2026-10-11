@@ -69,8 +69,8 @@ public struct PackDesign: Hashable, Sendable {
         self.bottomFraction = bottomFraction
     }
 
-    /// Width over height of the pouch: taller than a card, like a pocket pack.
-    /// `PackLayout` sizes the cards from the pack, so they stay hidden behind
-    /// it until it opens.
-    public static let aspectRatio: CGFloat = 0.58
+    /// Width over height of the pouch: taller than a card, like a pocket pack,
+    /// and the same proportions as the 3D pouch of `CardStage`. `PackLayout`
+    /// sizes the cards from the pack, so they stay hidden behind it until it opens.
+    public static let aspectRatio: CGFloat = 1 / 1.86
 }

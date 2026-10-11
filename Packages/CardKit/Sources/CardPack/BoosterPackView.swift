@@ -10,9 +10,59 @@ import SwiftUI
 /// adds the gesture.
 public struct BoosterPackView: View {
     public var design: PackDesign
+    /// Flat print for a texture: no silhouette, no seals, no sheen. The 3D
+    /// stage adds the foil, the crimps and the lighting itself.
+    public var forPrint: Bool
+    /// Draw the foil mask instead of the picture (see `PackPrintKind.mask`).
+    public var asMask: Bool
 
-    public init(design: PackDesign) {
+    public init(design: PackDesign, forPrint: Bool = false, asMask: Bool = false) {
         self.design = design
+        self.forPrint = forPrint || asMask
+        self.asMask = asMask
+    }
+
+    /// Colours of every part of the print, or the mask value of that part
+    /// when drawing the foil mask.
+    private struct Palette {
+        var top: [Color]
+        var bottom: [Color]
+        var pattern: Color
+        var accent: Color
+        var text: Color
+        var dimText: Color
+        var badgeFill: Color
+        var badgeStroke: Color
+        var seam: Color
+        var seamLight: Color
+        var titleTop: Color
+        var titleBottom: Color
+        var plateFill: Color
+        var plateStroke: Color
+        var plateText: Color
+    }
+
+    private var palette: Palette {
+        if asMask {
+            let foil = PackPrintKind.maskColor(foil: 1, holo: 1, matte: 0)
+            let chrome = PackPrintKind.maskColor(foil: 1, holo: 0.35, matte: 0)
+            let ink = PackPrintKind.maskColor(foil: 0.15, holo: 0, matte: 0.4)
+            return Palette(
+                top: [foil, foil], bottom: [foil, foil], pattern: foil, accent: chrome,
+                text: chrome, dimText: chrome, badgeFill: ink, badgeStroke: chrome,
+                seam: chrome, seamLight: chrome, titleTop: chrome, titleBottom: chrome,
+                plateFill: chrome, plateStroke: chrome, plateText: ink
+            )
+        }
+        return Palette(
+            top: [Color(design.topColor).opacity(0.95), Color(design.topColor)],
+            bottom: [Color(design.bottomColor), Color(design.bottomColor).opacity(0.85)],
+            pattern: .white.opacity(0.08), accent: Color(design.accent),
+            text: .white, dimText: .white.opacity(0.8), badgeFill: .black.opacity(0.6), badgeStroke: .white.opacity(0.5),
+            seam: Color(design.accent), seamLight: .white.opacity(0.85),
+            titleTop: .white, titleBottom: Color(design.accent).opacity(0.85),
+            plateFill: Color(design.accent), plateStroke: .white.opacity(0.7), plateText: .white
+        )
     }
 
     public var body: some View {
@@ -22,39 +72,47 @@ public struct BoosterPackView: View {
             let top = h * design.stripFraction
             let bottom = h * design.bottomFraction
             let seal = h * 0.028
+            let ink = palette
             ZStack(alignment: .top) {
                 // Full-bleed cover with a metallic sheen.
-                ArtworkView(design.cover, contentMode: .fill)
-                    .frame(width: w, height: h)
-                    .clipped()
-                    .cardEffect(.foilWrap(hue: design.foilHue, intensity: 0.18))
-                    .overlay {
-                        LinearGradient(
-                            stops: [
-                                .init(color: .white.opacity(0.22), location: 0),
-                                .init(color: .clear, location: 0.35),
-                                .init(color: .clear, location: 0.7),
-                                .init(color: .black.opacity(0.25), location: 1),
-                            ],
-                            startPoint: .topLeading, endPoint: .bottomTrailing
-                        )
-                    }
+                if asMask {
+                    PackPrintKind.maskColor(foil: 0.3, holo: 0.12, matte: 0.1)
+                        .frame(width: w, height: h)
+                } else {
+                    ArtworkView(design.cover, contentMode: .fill)
+                        .frame(width: w, height: h)
+                        .clipped()
+                        .cardEffect(.foilWrap(hue: design.foilHue, intensity: 0.18), isEnabled: !forPrint)
+                        .overlay {
+                            if !forPrint {
+                                LinearGradient(
+                                    stops: [
+                                        .init(color: .white.opacity(0.22), location: 0),
+                                        .init(color: .clear, location: 0.35),
+                                        .init(color: .clear, location: 0.7),
+                                        .init(color: .black.opacity(0.25), location: 1),
+                                    ],
+                                    startPoint: .topLeading, endPoint: .bottomTrailing
+                                )
+                            }
+                        }
+                }
 
                 // Bands.
                 VStack(spacing: 0) {
-                    topBand(width: w, height: top)
+                    topBand(width: w, height: top, ink: ink)
                     Spacer(minLength: 0)
-                    bottomBand(width: w, height: bottom)
+                    bottomBand(width: w, height: bottom, ink: ink)
                 }
 
                 // Seam: a bright double line where the top band is sealed.
                 VStack(spacing: max(w * 0.006, 1)) {
                     Rectangle()
-                        .fill(Color(design.accent))
+                        .fill(ink.seam)
                         .frame(width: w, height: max(w * 0.008, 1.5))
-                        .shadow(color: Color(design.accent).opacity(0.9), radius: w * 0.012)
+                        .shadow(color: asMask ? .clear : Color(design.accent).opacity(0.9), radius: w * 0.012)
                     Rectangle()
-                        .fill(.white.opacity(0.85))
+                        .fill(ink.seamLight)
                         .frame(width: w, height: max(w * 0.004, 1))
                 }
                 .offset(y: top)
@@ -67,21 +125,21 @@ public struct BoosterPackView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
                         .foregroundStyle(
-                            LinearGradient(colors: [.white, Color(design.accent).opacity(0.85)], startPoint: .top, endPoint: .bottom)
+                            LinearGradient(colors: [ink.titleTop, ink.titleBottom], startPoint: .top, endPoint: .bottom)
                         )
-                        .shadow(color: .black.opacity(0.7), radius: w * 0.012, y: w * 0.008)
-                        .shadow(color: Color(design.accent).opacity(0.5), radius: w * 0.03)
+                        .shadow(color: asMask ? .clear : .black.opacity(0.7), radius: w * 0.012, y: w * 0.008)
+                        .shadow(color: asMask ? .clear : Color(design.accent).opacity(0.5), radius: w * 0.03)
                     if let subtitle = design.subtitle {
                         Text(subtitle)
                             .font(.system(size: w * 0.055, weight: .heavy, design: .rounded))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(ink.plateText)
                             .padding(.horizontal, w * 0.06)
                             .padding(.vertical, w * 0.012)
                             .background {
                                 NamePlate()
-                                    .fill(Color(design.accent))
-                                    .overlay { NamePlate().stroke(.white.opacity(0.7), lineWidth: max(w * 0.004, 1)) }
-                                    .shadow(color: .black.opacity(0.5), radius: w * 0.01, y: w * 0.006)
+                                    .fill(ink.plateFill)
+                                    .overlay { NamePlate().stroke(ink.plateStroke, lineWidth: max(w * 0.004, 1)) }
+                                    .shadow(color: asMask ? .clear : .black.opacity(0.5), radius: w * 0.01, y: w * 0.006)
                             }
                     }
                 }
@@ -89,84 +147,95 @@ public struct BoosterPackView: View {
                 .padding(.top, h - bottom - h * 0.19)
 
                 // Crimped seals pressed into both ends of the pouch.
-                VStack(spacing: 0) {
-                    SealBand(color: Color(design.topColor)).frame(width: w, height: seal)
-                    Spacer(minLength: 0)
-                    SealBand(color: Color(design.bottomColor)).frame(width: w, height: seal).rotationEffect(.degrees(180))
+                if !forPrint {
+                    VStack(spacing: 0) {
+                        SealBand(color: Color(design.topColor)).frame(width: w, height: seal)
+                        Spacer(minLength: 0)
+                        SealBand(color: Color(design.bottomColor)).frame(width: w, height: seal).rotationEffect(.degrees(180))
+                    }
                 }
             }
             .frame(width: w, height: h)
-            .cardEffect(.holo(.prism, intensity: design.prismIntensity), isEnabled: design.prismIntensity > 0.005)
-            .clipShape(PackShape())
+            .cardEffect(.holo(.prism, intensity: design.prismIntensity), isEnabled: !forPrint && design.prismIntensity > 0.005)
+            .clipShape(forPrint ? AnyShape(Rectangle()) : AnyShape(PackShape()))
             .overlay {
-                PackShape()
-                    .stroke(.white.opacity(0.25), lineWidth: max(w * 0.004, 0.8))
+                if !forPrint {
+                    PackShape()
+                        .stroke(.white.opacity(0.25), lineWidth: max(w * 0.004, 0.8))
+                }
             }
         }
         .aspectRatio(PackDesign.aspectRatio, contentMode: .fit)
     }
 
-    private func topBand(width w: CGFloat, height: CGFloat) -> some View {
+    private func topBand(width w: CGFloat, height: CGFloat, ink: Palette) -> some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(design.topColor).opacity(0.95), Color(design.topColor)],
-                startPoint: .top, endPoint: .bottom
-            )
+            LinearGradient(colors: ink.top, startPoint: .top, endPoint: .bottom)
             EmblemPattern(symbol: design.emblemSymbol, spacing: w * 0.16)
-                .foregroundStyle(.white.opacity(0.08))
+                .foregroundStyle(ink.pattern)
             // Brand block centred like a logo, the set code in the corner.
             VStack(spacing: height * 0.02) {
                 HStack(alignment: .center, spacing: w * 0.025) {
                     Image(systemName: design.emblemSymbol)
                         .font(.system(size: height * 0.3, weight: .bold))
-                        .foregroundStyle(Color(design.accent))
-                        .shadow(color: Color(design.accent).opacity(0.8), radius: height * 0.08)
+                        .foregroundStyle(ink.accent)
+                        .shadow(color: asMask ? .clear : Color(design.accent).opacity(0.8), radius: height * 0.08)
                     Text(design.brand)
                         .font(.system(size: height * 0.21, weight: .black, design: .rounded))
                         .tracking(height * 0.02)
+                        .foregroundStyle(ink.text)
                 }
                 Text("\(design.cardCount) CARDS")
                     .font(.system(size: height * 0.12, weight: .bold, design: .rounded))
                     .tracking(height * 0.03)
-                    .opacity(0.8)
+                    .foregroundStyle(ink.dimText)
             }
-            .foregroundStyle(.white)
             .lineLimit(1)
             .minimumScaleFactor(0.6)
             .padding(.horizontal, w * 0.2)
             .padding(.top, height * 0.16)
-            .shadow(color: .black.opacity(0.35), radius: height * 0.03, y: height * 0.02)
+            .shadow(color: asMask ? .clear : .black.opacity(0.35), radius: height * 0.03, y: height * 0.02)
         }
         .frame(width: w, height: height)
         .overlay(alignment: .topTrailing) {
             if let setCode = design.setCode {
                 Text(setCode)
                     .font(.system(size: height * 0.17, weight: .heavy, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(ink.text)
                     .padding(.horizontal, height * 0.12)
                     .padding(.vertical, height * 0.05)
-                    .background(RoundedRectangle(cornerRadius: height * 0.08).fill(.black.opacity(0.6)))
-                    .overlay(RoundedRectangle(cornerRadius: height * 0.08).stroke(.white.opacity(0.5), lineWidth: 1))
+                    .background(RoundedRectangle(cornerRadius: height * 0.08).fill(ink.badgeFill))
+                    .overlay(RoundedRectangle(cornerRadius: height * 0.08).stroke(ink.badgeStroke, lineWidth: 1))
                     .padding(.top, height * 0.24)
                     .padding(.trailing, w * 0.04)
             }
         }
     }
 
-    private func bottomBand(width w: CGFloat, height: CGFloat) -> some View {
+    private func bottomBand(width w: CGFloat, height: CGFloat, ink: Palette) -> some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(design.bottomColor), Color(design.bottomColor).opacity(0.85)],
-                startPoint: .top, endPoint: .bottom
-            )
+            LinearGradient(colors: ink.bottom, startPoint: .top, endPoint: .bottom)
             EmblemPattern(symbol: design.emblemSymbol, spacing: w * 0.16)
-                .foregroundStyle(.white.opacity(0.06))
+                .foregroundStyle(ink.pattern.opacity(asMask ? 1 : 0.75))
         }
         .frame(width: w, height: height)
         .mask {
             // Soft top edge so the band blends into the cover.
             LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.3)], startPoint: .top, endPoint: .bottom)
         }
+    }
+}
+
+/// What a print of a pack shows: the picture, or the mask the 3D stage
+/// reads to know where the foil is (red), where it shifts to rainbow
+/// (green) and where it is matte (blue).
+public enum PackPrintKind: Hashable, Sendable {
+    case art
+    case mask
+
+    /// Mask colour for a part of the print.
+    public static func maskColor(foil: Double, holo: Double, matte: Double) -> Color {
+        Color(.sRGB, red: foil, green: holo, blue: matte, opacity: 1)
     }
 }
 

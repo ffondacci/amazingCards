@@ -17,11 +17,12 @@ let package = Package(
     ],
     products: [
         // Umbrella product: everything.
-        .library(name: "CardKit", targets: ["CardCore", "CardFX", "CardUI", "CardPack"]),
+        .library(name: "CardKit", targets: ["CardCore", "CardFX", "CardUI", "CardStage", "CardPack"]),
         // Granular products for apps that only need a subset.
         .library(name: "CardCore", targets: ["CardCore"]),
         .library(name: "CardFX", targets: ["CardFX"]),
         .library(name: "CardUI", targets: ["CardUI"]),
+        .library(name: "CardStage", targets: ["CardStage"]),
         .library(name: "CardPack", targets: ["CardPack"]),
     ],
     targets: [
@@ -41,8 +42,14 @@ let package = Package(
             swiftSettings: strictSettings
         ),
         .target(
+            name: "CardStage",
+            dependencies: ["CardCore"],
+            resources: [.process("Shaders")],
+            swiftSettings: strictSettings
+        ),
+        .target(
             name: "CardPack",
-            dependencies: ["CardCore", "CardFX", "CardUI"],
+            dependencies: ["CardCore", "CardFX", "CardUI", "CardStage"],
             swiftSettings: strictSettings
         ),
         .testTarget(

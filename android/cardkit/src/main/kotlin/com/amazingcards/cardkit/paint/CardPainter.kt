@@ -424,8 +424,12 @@ class CardPainter(private val artwork: ArtworkResolver, private val context: and
         // Artwork window.
         val winH = m.ptH(37.4f)
         val window = RectF(left, y, right, y + winH)
+        // The window's drop shadow, only around it: a cutout sticker lets the paper show inside.
+        layers.frame.save(); layers.frame.clipOutRect(window)
         layers.frame.shadowed(Path().apply { addRect(window, Path.Direction.CW) }, Shadow(Ink.black(0.35), m.pt(0.8f), 0f, m.pt(0.4f)))
-        layers.art(window) { ac, rect -> artwork.bitmap(card.artwork, rect.width().toInt(), winH.toInt())?.let { ac.drawCover(it, rect) } ?: placeholder(ac, rect) }
+        layers.frame.restore()
+        // A cutout sticker (alpha) is shown whole, a photo fills the window: what the iOS card shows.
+        layers.art(window) { ac, rect -> artwork.bitmap(card.artwork, rect.width().toInt(), winH.toInt())?.let { ac.drawCover(it, rect, fit = it.hasAlpha()) } ?: placeholder(ac, rect) }
         c.drawRect(window, Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = m.pt(0.9f); shader = LinearGradient(window.left, window.top, window.right, window.bottom, intArrayOf(Ink.rgb(0.95, 0.95, 0.95), Ink.rgb(0.55, 0.55, 0.55), Ink.rgb(0.9, 0.9, 0.9)), null, Shader.TileMode.CLAMP) })
         y += winH + m.ptH(0.4f)
         // Species strip.

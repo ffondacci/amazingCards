@@ -18,6 +18,6 @@ half4 main(float2 position) {
     col += stars(q, density * 0.5, pan, time, 11.0) * float3(1.0, 0.95, 0.9);
     col += stars(q, density * 0.25, pan * 1.6, time, 29.0) * float3(0.9, 0.95, 1.0) * 1.2;
     float milky = fbm(q * 2.0 + float2(0.0, 0.3), 4);
-    col += float3(0.08, 0.09, 0.16) * smoothstep(0.45, 0.8, milky);
+    col += float3(0.08, 0.09, 0.16) * ss(0.45, 0.8, milky);
     return premulRgb(col * clamp(intensity, 0.0, 1.5), color.a);
 }

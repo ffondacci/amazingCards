@@ -40,7 +40,7 @@ float3 reverseHolo(float2 uv, float2 p, float2 pan) {
     float diag = 0.5 + 0.5 * sin(dot(uv + pan * 1.1, normalize(float2(1.0, -1.0))) * TAU * 2.4);
     float2 g = (uv + pan * 0.1) * float2(26.0, 38.0);
     float2 l = fract(g) - 0.5;
-    float diamond = 1.0 - smoothstep(0.30, 0.46, abs(l.x) + abs(l.y));
+    float diamond = 1.0 - ss(0.30, 0.46, abs(l.x) + abs(l.y));
     float tex = fbm(uv * 9.0 + pan * 1.3, 3);
     float foil = abs(rings - diag) * (0.55 + tex * 0.45) + diamond * 0.18;
     return mix(float3(0.10, 0.12, 0.17), float3(0.90, 0.95, 1.0), clamp(foil, 0.0, 1.0));
@@ -51,8 +51,8 @@ float3 galaxyHolo(float2 uv, float2 p, float2 pan, float time) {
     float n1 = fbm(q + float2(time * 0.03, 0.0), 5);
     float n2 = fbm(q * 1.7 + float2(5.2, -3.1) - time * 0.02, 4);
     float3 gas = mix(float3(0.08, 0.02, 0.25), float3(0.05, 0.25, 0.55), n1);
-    gas = mix(gas, float3(0.55, 0.10, 0.45), smoothstep(0.45, 0.8, n2));
-    gas += spectrum(n1 * 1.5 + pan.x) * 0.15 * smoothstep(0.5, 0.75, n1);
+    gas = mix(gas, float3(0.55, 0.10, 0.45), ss(0.45, 0.8, n2));
+    gas += spectrum(n1 * 1.5 + pan.x) * 0.15 * ss(0.5, 0.75, n1);
     float s = stars(uv, 30.0, pan * 0.2, time, 7.0) + stars(uv, 60.0, pan * -0.1, time, 41.0) * 0.6;
     float g = glarePoint(uv, p, 0.9, 1.4);
     return gas * (0.8 + g * 0.6) + s * float3(0.9, 0.95, 1.0);
@@ -75,9 +75,9 @@ float geometricFoil(float2 uv, float2 pan) {
     float2 q = (uv + pan * 0.12) * float2(12.0, 17.0);
     float2 cell = floor(q);
     float2 l = fract(q) - 0.5;
-    float dA = 1.0 - smoothstep(0.03, 0.09, abs(l.x + l.y));
-    float dB = 1.0 - smoothstep(0.03, 0.09, abs(l.x - l.y));
-    float diamond = 1.0 - smoothstep(0.34, 0.48, abs(l.x) + abs(l.y));
+    float dA = 1.0 - ss(0.03, 0.09, abs(l.x + l.y));
+    float dB = 1.0 - ss(0.03, 0.09, abs(l.x - l.y));
+    float diamond = 1.0 - ss(0.34, 0.48, abs(l.x) + abs(l.y));
     float alt = step(0.5, hash21(cell));
     return mix(max(dA, dB), diamond, alt) * 0.8;
 }
@@ -95,7 +95,7 @@ float3 goldHolo(float2 uv, float2 p, float2 pan, float time) {
 }
 
 float3 amazingHolo(float2 uv, float2 p, float2 pan, float time) {
-    float splash = smoothstep(0.45, 0.72, fbm(uv * 5.0 + float2(3.0, 8.0), 4));
+    float splash = ss(0.45, 0.72, fbm(uv * 5.0 + float2(3.0, 8.0), 4));
     float phase = dot(uv - pan * 2.0, normalize(float2(-0.65, 0.76))) * 2.5;
     float3 foil = spectrum(phase) * (0.12 + splash * 0.5) + pastel(phase + 0.35) * splash * 0.25;
     foil += float3(0.7, 0.82, 0.8) * glarePoint(uv, p, 1.0, 1.1) * 0.2;
@@ -123,7 +123,7 @@ float3 prismHolo(float2 uv, float2 p, float2 pan) {
     float3 foil = spectrum(ring);
     float grating = 0.5 + 0.5 * sin(uv.x * 220.0 + ang * 3.0);
     foil *= 0.35 + grating * 0.35;
-    foil *= smoothstep(1.3, 0.05, r) * 0.9 + 0.1;
+    foil *= ss(1.3, 0.05, r) * 0.9 + 0.1;
     foil += glarePoint(uv, p, 0.5, 2.0) * 0.6;
     return foil;
 }

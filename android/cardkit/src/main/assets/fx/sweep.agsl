@@ -17,7 +17,7 @@ half4 main(float2 position) {
     float2 dir = float2(cos(a), sin(a));
     float t = dot(uv - 0.5, dir) + 0.5;
     float center = mix(-width, 1.0 + width, progress);
-    float band = pow(1.0 - smoothstep(0.0, width, abs(t - center)), 1.5);
+    float band = pow(1.0 - ss(0.0, width, abs(t - center)), 1.5);
     float3 src = unpremulRgb(color);
     float3 result = screenBlend(src, float3(band * intensity));
     result += spectrum(t * 3.0 + progress) * band * intensity * 0.15;

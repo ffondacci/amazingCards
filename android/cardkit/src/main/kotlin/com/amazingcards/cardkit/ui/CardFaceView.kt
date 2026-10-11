@@ -55,18 +55,20 @@ fun CardFaceView(card: Card, face: CardFace, motion: CardMotion, showsFinish: Bo
         clip.reset(); clip.addRoundRect(RectF(0f, 0f, w, h), radius, radius, Path.Direction.CW)
 
         fun layer(bitmap: Bitmap, rect: RectF, effects: List<CardEffect>) {
+            // The passes compute uv from the canvas position, so a layer that sits
+            // away from the origin is drawn in a translated frame; the bitmap's
+            // local matrix must be final before it is chained, because
+            // setInputShader captures the child's native instance right away.
+            val offset = rect.left != 0f || rect.top != 0f
             matrix.reset()
             matrix.setScale(rect.width() / bitmap.width, rect.height() / bitmap.height)
-            matrix.postTranslate(rect.left, rect.top)
+            if (!offset) matrix.postTranslate(rect.left, rect.top)
             val input = BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply { setLocalMatrix(matrix) }
-            // The passes read positions relative to the layer: shift the shader's frame onto the layer rect.
             val chained = CardFXShaders.chain(context, effects, input, motion, rect.width(), rect.height())
             paint.shader = chained ?: input
             paint.blendMode = null
-            if (chained != null && (rect.left != 0f || rect.top != 0f)) {
-                // Passes compute uv from the canvas position: draw in a translated frame.
+            if (offset) {
                 native.save(); native.translate(rect.left, rect.top)
-                matrix.postTranslate(-rect.left, -rect.top); input.setLocalMatrix(matrix)
                 native.drawRect(0f, 0f, rect.width(), rect.height(), paint)
                 native.restore()
             } else {

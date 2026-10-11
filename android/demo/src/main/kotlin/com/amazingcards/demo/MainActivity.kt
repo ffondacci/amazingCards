@@ -25,7 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.amazingcards.cardkit.stage.OpeningStyle
 
-/** Tab root: the collection and the booster stage. `--es demoRoute booster` opens a tab at launch. */
+/** Tab root: the collection and the booster stage. `--es demoRoute booster` opens a tab at launch, `--es card <id>` a card. */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,6 +33,8 @@ class MainActivity : ComponentActivity() {
         val route = intent.getStringExtra("demoRoute") ?: "collection"
         val opening = intent.getStringExtra("opening")?.let { name -> OpeningStyle.entries.firstOrNull { it.name.equals(name, true) } } ?: OpeningStyle.TEAR
         val openAfter = intent.getStringExtra("openAfter")?.toLongOrNull() ?: 0L
+        val cardId = intent.getStringExtra("card")
+        val dumpFaces = intent.getStringExtra("dumpFaces") == "1"
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(primary = Color(0xFFFFD60A), surface = Color(0xFF0F0F14))) {
                 var tab by remember { mutableIntStateOf(if (route == "booster") 1 else 0) }
@@ -47,7 +49,7 @@ class MainActivity : ComponentActivity() {
                 ) { padding ->
                     Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())) {
                         when (tab) {
-                            0 -> CollectionScreen()
+                            0 -> CollectionScreen(cardId, dumpFaces)
                             else -> BoosterScreen(opening, openAfter)
                         }
                     }

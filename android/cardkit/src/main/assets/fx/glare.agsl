@@ -13,7 +13,7 @@ half4 main(float2 position) {
     float2 uv = position / max(size, float2(1.0));
     float2 p = resolvePointer(pointer, tilt);
     float valid = step(0.0, pointer.x) * step(0.0, pointer.y);
-    float active = max(valid, smoothstep(0.0, 0.25, length(tilt)));
+    float active = max(valid, ss(0.0, 0.25, length(tilt)));
     float g = glarePoint(uv, p, radius, 1.6);
     float3 src = unpremulRgb(color);
     float3 lit = screenBlend(src, float3(g * 0.9));

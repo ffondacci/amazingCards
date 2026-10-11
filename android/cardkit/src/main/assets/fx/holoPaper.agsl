@@ -15,7 +15,7 @@ half4 main(float2 position) {
     float grain = vnoise(uv * float2(500.0, 700.0)) * 0.08;
     float3 base = float3(0.93, 0.92, 0.91);
     float3 tint = pastel(hue + uv.y * 0.6 + clouds * 0.8 + pan.x * 0.4);
-    float mask = 0.25 + 0.55 * smoothstep(0.3, 0.8, uv.y + clouds * 0.3 - 0.2);
+    float mask = 0.25 + 0.55 * ss(0.3, 0.8, uv.y + clouds * 0.3 - 0.2);
     float3 col = mix(base, tint, clamp(intensity, 0.0, 1.0) * mask);
     col = col * (0.95 + grain) - clouds * 0.08;
     return premulRgb(col, color.a);

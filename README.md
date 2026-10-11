@@ -143,8 +143,9 @@ xcodebuild -project "Amazing Cards/Amazing Cards.xcodeproj" -scheme "Amazing Car
 ```
 
 The demo accepts `-demoRoute collection|effects|animations|booster` to open a
-screen directly, and `-showFPS YES` to overlay a display-link frame counter
-(current rate and the worst half-second of the last three seconds).
+screen directly, `-card creature-vincent` or `-parallax saturn` to open one
+card, and `-showFPS YES` to overlay a display-link frame counter (current
+rate and the worst half-second of the last three seconds).
 
 ## Android (Vulkan)
 
@@ -165,6 +166,8 @@ cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :demo:assembleDeb
 adb install -r demo/build/outputs/apk/debug/demo-debug.apk
 adb shell am start -n com.amazingcards.demo/.MainActivity --es demoRoute booster \
   --es opening zip --es openAfter 2000     # style, and open the front pack by itself
+adb shell am start -n com.amazingcards.demo/.MainActivity --es demoRoute collection \
+  --es card creature-vincent --es dumpFaces 1   # one card; the painted layers as PNGs in files/faces
 ```
 
 Needs the NDK 28, CMake 3.31 and a Vulkan device or an emulator started with

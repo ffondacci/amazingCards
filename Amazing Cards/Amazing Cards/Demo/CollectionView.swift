@@ -72,10 +72,14 @@ struct CollectionView: View {
                 ParallaxDetailView(design: design)
             }
             .onAppear {
-                // `-parallax saturn` opens a parallax card straight away (screenshots, QA).
+                // `-parallax saturn` opens a parallax card straight away, `-card creature-vincent` a card (screenshots, QA).
                 if let wanted = UserDefaults.standard.string(forKey: "parallax"),
                    let design = SampleLibrary.parallaxDesigns.first(where: { $0.id.contains(wanted) }) {
                     selectedParallax = design
+                }
+                if let wanted = UserDefaults.standard.string(forKey: "card"),
+                   let card = SampleLibrary.all.first(where: { $0.id.rawValue == wanted }) {
+                    selected = card
                 }
             }
             .toolbar {

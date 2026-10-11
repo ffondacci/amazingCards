@@ -59,16 +59,24 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
-fun CollectionScreen() {
+fun CollectionScreen(initialCardId: String? = null, dumpFaces: Boolean = false) {
     val context = LocalContext.current
     val prints = remember { PackPrints(context, provider = CustomArtworks.provider) }
     var faces by remember { mutableStateOf<Map<String, CardFace>>(emptyMap()) }
     var back by remember { mutableStateOf<Bitmap?>(null) }
-    var selected by remember { mutableStateOf<Card?>(null) }
+    var selected by remember { mutableStateOf(SampleLibrary.all.firstOrNull { it.id == initialCardId }) }
     var showsFinish by remember { mutableStateOf(true) }
     LaunchedEffect(Unit) {
         val painted = withContext(Dispatchers.Default) { SampleLibrary.all.associate { it.id to prints.cardLayers(it, 560) } to prints.cardBack(560) }
         faces = painted.first; back = painted.second
+        if (dumpFaces) withContext(Dispatchers.IO) {
+            // `--es dumpFaces 1`: the painted layers as PNGs in files/faces, for QA (`adb pull`).
+            val dir = java.io.File(context.filesDir, "faces").apply { mkdirs() }
+            for ((id, face) in painted.first) {
+                fun save(name: String, bitmap: Bitmap?) { bitmap ?: return; java.io.File(dir, "$id-$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+                save("flat", face.flat); save("frame", face.frame); save("art", face.art); save("overlay", face.overlay)
+            }
+        }
     }
     val card = selected
     if (card != null && back != null) {

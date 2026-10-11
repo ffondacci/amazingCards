@@ -17,6 +17,8 @@ struct BoosterDemoView: View {
     @State private var nextDeal: (pack: BoosterPack, skins: [CardSkin])?
     @State private var dealt = 0
     @State private var night = false
+    /// How the front pack opens; `-opening melt` picks one at launch.
+    @State private var opening: OpeningStyle = UserDefaults.standard.string(forKey: "opening").flatMap(OpeningStyle.init(rawValue:)) ?? .tear
     /// `-captureAfter 8` saves the stage frame to Documents/capture.png after 8 s
     /// (validation on a device without a screenshot tool).
     private let captureAfter = UserDefaults.standard.double(forKey: "captureAfter")
@@ -64,7 +66,7 @@ struct BoosterDemoView: View {
     var body: some View {
         NavigationStack {
             ZStack(alignment: .top) {
-                PackStageView(designs: Self.designs, settings: StageSettings(lighting: night ? .night : .studio), selection: $designIndex, preparedCards: nextDeal?.skins ?? [], capturable: captureAfter > 0, onPhase: { phase = $0 }, onScene: scheduleCapture) { index in
+                PackStageView(designs: Self.designs, settings: StageSettings(lighting: night ? .night : .studio, opening: opening), selection: $designIndex, preparedCards: nextDeal?.skins ?? [], capturable: captureAfter > 0, onPhase: { phase = $0 }, onScene: scheduleCapture) { index in
                     designIndex = index
                     let deal: (pack: BoosterPack, skins: [CardSkin])
                     if let ready = nextDeal {
@@ -102,6 +104,14 @@ struct BoosterDemoView: View {
                     }
                     .padding(.top, 8)
                     .transition(.opacity)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                // The six ways to open a pack, like the studio's pill.
+                if phase == .idle {
+                    OpeningPicker(selection: $opening, night: night)
+                        .padding(.bottom, 12)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
             }
             .animation(.easeInOut(duration: 0.3), value: designIndex)
@@ -146,5 +156,44 @@ struct BoosterDemoView: View {
         seed &+= 1
         var rng = SeededRandomNumberGenerator(seed: seed)
         return BoosterGenerator.standard.makePack(named: design.title, from: SampleLibrary.boosterPool, using: &rng)
+    }
+}
+
+
+/// Horizontal pill of the opening styles.
+private struct OpeningPicker: View {
+    @Binding var selection: OpeningStyle
+    var night: Bool
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 2) {
+                ForEach(Array(OpeningStyle.allCases.enumerated()), id: \.element) { index, style in
+                    let selected = style == selection
+                    Button {
+                        selection = style
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text("\(index + 1)")
+                                .font(.caption2.weight(.semibold))
+                                .opacity(0.6)
+                            Text(style.rawValue.capitalized)
+                                .font(.footnote.weight(.semibold))
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(selected ? (night ? Color.white.opacity(0.18) : Color.white) : .clear, in: Capsule())
+                        .foregroundStyle(night ? .white : (selected ? Color(white: 0.1) : Color(white: 0.35)))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(4)
+        }
+        .scrollIndicators(.hidden)
+        .background(.regularMaterial, in: Capsule())
+        .fixedSize(horizontal: true, vertical: false)
+        .frame(maxWidth: 380)
+        .accessibilityLabel("Opening style")
     }
 }

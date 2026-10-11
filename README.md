@@ -69,8 +69,11 @@ the light rays and halo behind the dealt cards, the dim around the rare one
 and the flash of its reveal). Drag a pack to turn
 it, drag beside it to browse, tap the front one: it flies in front of the
 camera, waits for the swipe (or opens by itself), comes apart in the chosen
-style (`StageSettings.opening`), drops away while the cards rise out of its
-mouth, and deals them one tap at a time, the rare one face down with a halo,
+style (`StageSettings.opening`: tear the strip off, rip it in two from the
+middle, pull the zip tab across a perforated line, melt it with a glowing
+scorch, roll it up, or flip it open like a lid, each with its own way of
+pouring the cards out), drops away while the cards rise out of its mouth,
+and deals them one tap at a time, the rare one face down with a halo,
 then revealed with a flash and a burst of golden flakes; a last tap fans the
 five out, another puts them away. `onOpen` hands back the `CardSkin`s to deal
 (our `CardView` fronts and `CardBackView` backs, rendered by

@@ -194,6 +194,12 @@ extension StageScene {
             if o.phase != .zoom { pose.strip = strip; pose.stripVisible = true }
         }
 
+        if style == .zip, pose.stripVisible {
+            // The tab sits on the strip at the cut, turned a little toward the viewer.
+            let x = (0.5 - o.cut) * PouchMetrics.width + 0.02
+            pose.tabVisible = true
+            pose.tabModel = pose.stripModel * StageMath.translation([x, Self.lineY, 0.07]) * StageMath.rotationY(0.35)
+        }
         pose.cards = cardDraws(anchor: anchor, showInside: o.phase == .cut || o.phase == .open || o.phase == .present || o.phase == .fan || o.phase == .exit)
         pose.auraOpacity = o.aura
         pose.auraPulse = o.revealAt > 0 ? exp(-pow(o.tau - o.revealAt - 0.45, 2) / 0.04) : 0

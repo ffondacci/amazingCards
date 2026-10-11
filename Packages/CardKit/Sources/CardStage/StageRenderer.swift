@@ -75,6 +75,10 @@ final class StageRenderer: NSObject, MTKViewDelegate {
     var front: GPUMesh?
     var back: GPUMesh?
     var card: GPUMesh?
+    var tab: GPUMesh?
+    var tabSlider: GPUMesh?
+    var tabArt: MTLTexture?
+    var tabMask: MTLTexture?
     var wrinkles: MTLTexture?
     var skins: [Int: Skin] = [:]
     var cards: [CardTextures] = []
@@ -172,6 +176,10 @@ final class StageRenderer: NSObject, MTKViewDelegate {
         rareCardMask = Self.solidTexture(device: device, rgba: [150, 200, 0, 255], srgb: false)
         super.init()
         card = gpuMesh(Self.cardMesh())
+        tab = gpuMesh(Self.slabMesh(width: 0.085, height: 0.046, depth: 0.006, corner: 0.014))
+        tabSlider = gpuMesh(Self.slabMesh(width: 0.034, height: 0.03, depth: 0.016, corner: 0.003))
+        tabArt = Self.tabTexture(device: device)
+        tabMask = Self.solidTexture(device: device, rgba: [255, 0, 20, 255], srgb: false)
         rebuildAssetsIfNeeded()
     }
 

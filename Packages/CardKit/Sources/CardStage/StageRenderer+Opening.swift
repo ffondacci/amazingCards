@@ -6,6 +6,64 @@ import simd
 
 /// The pack being opened, its cards, and everything flying around them.
 extension StageRenderer {
+    /// A rounded slab (the pull tab and its slider): two faces and the wall between them.
+    static func slabMesh(width w: Float, height h: Float, depth d: Float, corner r: Float) -> PouchMesh {
+        var outline: [SIMD2<Float>] = []
+        let corners: [(SIMD2<Float>, Float)] = [([w / 2 - r, h / 2 - r], 0), ([-w / 2 + r, h / 2 - r], .pi / 2), ([-w / 2 + r, -h / 2 + r], .pi), ([w / 2 - r, -h / 2 + r], 3 * .pi / 2)]
+        for (c, start) in corners {
+            for k in 0...4 {
+                let a = start + Float(k) / 4 * (.pi / 2)
+                outline.append(c + SIMD2(cos(a), sin(a)) * r)
+            }
+        }
+        var vertices: [PouchVertex] = []
+        var indices: [UInt32] = []
+        let n = UInt32(outline.count)
+        for (z, normal) in [(d / 2, SIMD3<Float>(0, 0, 1)), (-d / 2, SIMD3<Float>(0, 0, -1))] {
+            let base = UInt32(vertices.count)
+            vertices.append(PouchVertex(position: [0, 0, z], normal: normal, uv: [0.5, 0.5]))
+            for p in outline {
+                vertices.append(PouchVertex(position: [p.x, p.y, z], normal: normal, uv: [p.x / w + 0.5, 0.5 - p.y / h]))
+            }
+            for i in 0..<n {
+                let a = base + 1 + i, b = base + 1 + (i + 1) % n
+                indices += normal.z > 0 ? [base, a, b] : [base, b, a]
+            }
+        }
+        // The wall.
+        for i in 0..<Int(n) {
+            let p0 = outline[i], p1 = outline[(i + 1) % Int(n)]
+            let edge = p1 - p0
+            let normal = normalize(SIMD3<Float>(edge.y, -edge.x, 0))
+            let base = UInt32(vertices.count)
+            vertices.append(PouchVertex(position: [p0.x, p0.y, d / 2], normal: normal, uv: [0.5, 0.5]))
+            vertices.append(PouchVertex(position: [p1.x, p1.y, d / 2], normal: normal, uv: [0.5, 0.5]))
+            vertices.append(PouchVertex(position: [p1.x, p1.y, -d / 2], normal: normal, uv: [0.5, 0.5]))
+            vertices.append(PouchVertex(position: [p0.x, p0.y, -d / 2], normal: normal, uv: [0.5, 0.5]))
+            indices += [base, base + 1, base + 2, base, base + 2, base + 3]
+        }
+        return PouchMesh(vertices: vertices, indices: indices)
+    }
+
+    /// Gold with the dark ring hole of the pull tab.
+    static func tabTexture(device: MTLDevice) -> MTLTexture? {
+        let w = 128, h = 70
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue)
+        else { return nil }
+        context.setFillColor(red: 0.914, green: 0.769, blue: 0.416, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        context.setFillColor(red: 0.08, green: 0.06, blue: 0.03, alpha: 1)
+        let radius = 0.011 / 0.085 * Double(w)
+        context.fillEllipse(in: CGRect(x: 0.29 * Double(w) - radius, y: Double(h) / 2 - radius, width: 2 * radius, height: 2 * radius))
+        guard let data = context.data else { return nil }
+        let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba8Unorm_srgb, width: w, height: h, mipmapped: false)
+        d.usage = .shaderRead
+        guard let t = device.makeTexture(descriptor: d) else { return nil }
+        t.replace(region: MTLRegionMake2D(0, 0, w, h), mipmapLevel: 0, withBytes: data, bytesPerRow: w * 4)
+        return t
+    }
+
     /// Rounded rectangle of a card, 0.8 wide, as a fan of triangles.
     static func cardMesh(aspect: Float = 0.716) -> PouchMesh {
         let w: Float = 0.8, h = w / aspect, r: Float = 0.042
@@ -93,6 +151,21 @@ extension StageRenderer {
         }
         if pose.bodyVisible { piece(pose.bodyModel, pose.body) }
         if pose.stripVisible { piece(pose.stripModel, pose.strip) }
+        if pose.tabVisible, let tab, let tabSlider, let tabArt, let tabMask {
+            // The pull tab: a gold slab with a ring hole and the slider it hangs from.
+            encoder.setCullMode(.back)
+            encoder.setFragmentTexture(tabArt, index: 0)
+            encoder.setFragmentTexture(tabMask, index: 1)
+            for (mesh, model) in [(tab, pose.tabModel), (tabSlider, pose.tabModel)] {
+                var object = ObjectUniforms(model: model, flags: SIMD4(0, 1, 0, 1))
+                object.mouth = [0, 1, 1, 0]
+                encoder.setVertexBytes(&object, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                encoder.setFragmentBytes(&object, length: MemoryLayout<ObjectUniforms>.stride, index: 2)
+                encoder.setVertexBuffer(mesh.vertices, offset: 0, index: 0)
+                encoder.drawIndexedPrimitives(type: .triangle, indexCount: mesh.count, indexType: .uint32, indexBuffer: mesh.indices, indexBufferOffset: 0)
+            }
+            encoder.setCullMode(.none)
+        }
 
         // Cards, back to front, over the aura of the rare one.
         guard let card, !pose.cards.isEmpty else { return }

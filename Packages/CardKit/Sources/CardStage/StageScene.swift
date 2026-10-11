@@ -78,6 +78,9 @@ struct OpeningPose: Sendable {
     var stripVisible = false
     var stripModel = matrix_identity_float4x4
     var strip = PieceDials()
+    /// The pull tab of a zip opening, riding the strip at the cut.
+    var tabVisible = false
+    var tabModel = matrix_identity_float4x4
     var cards: [CardDraw] = []
     /// Light rays and glow behind the rare card: position, scale, opacity.
     var auraOpacity: Float = 0

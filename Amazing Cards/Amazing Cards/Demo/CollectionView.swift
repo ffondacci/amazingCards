@@ -7,6 +7,7 @@ import SwiftUI
 struct CollectionView: View {
     @Binding var theme: CardTheme
     @State private var selected: Card?
+    @State private var selectedParallax: ParallaxDesign?
     @State private var showsFinish = true
 
     var body: some View {
@@ -34,11 +35,48 @@ struct CollectionView: View {
                     }
                 }
                 .padding()
+
+                // Layered cards: tilt them and the layers slide apart.
+                Text("Parallax")
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 230), spacing: 16)], spacing: 16) {
+                    ForEach(SampleLibrary.parallaxDesigns) { design in
+                        Button {
+                            selectedParallax = design
+                        } label: {
+                            VStack(spacing: 8) {
+                                ParallaxCardView(design: design, size: 1.35)
+                                    .aspectRatio(ParallaxDesign.aspectRatio, contentMode: .fit)
+                                    .allowsHitTesting(false)
+                                Text(design.name)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(design.name)
+                    }
+                }
+                .padding()
             }
             .background(Color(white: 0.06))
             .navigationTitle("Collection")
             .navigationDestination(item: $selected) { card in
                 CardDetailView(card: card)
+            }
+            .navigationDestination(item: $selectedParallax) { design in
+                ParallaxDetailView(design: design)
+            }
+            .onAppear {
+                // `-parallax saturn` opens a parallax card straight away (screenshots, QA).
+                if let wanted = UserDefaults.standard.string(forKey: "parallax"),
+                   let design = SampleLibrary.parallaxDesigns.first(where: { $0.id.contains(wanted) }) {
+                    selectedParallax = design
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -112,5 +150,42 @@ struct CardDetailView: View {
         .background(Color(white: 0.06).ignoresSafeArea())
         .navigationTitle(card.title)
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+
+/// A parallax card full size, with its three views and a flip.
+struct ParallaxDetailView: View {
+    let design: ParallaxDesign
+    @State private var mode: ParallaxMode = .card
+    @State private var flips = 0
+    @State private var deviceMotion = DeviceMotionSource()
+
+    var body: some View {
+        VStack(spacing: 16) {
+            ParallaxCardView(design: design, mode: mode, flips: flips)
+                .cardMotion(tilt: deviceMotion.tilt, animates: false)
+                .onAppear { deviceMotion.start() }
+                .onDisappear { deviceMotion.stop() }
+            Picker("View", selection: $mode) {
+                Text("Card").tag(ParallaxMode.card)
+                Text("Layers in 3D").tag(ParallaxMode.stack)
+                Text("Side by side").tag(ParallaxMode.spread)
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            Button("Flip") { flips += 1 }
+                .buttonStyle(.bordered)
+                .disabled(mode != .card)
+            Text("\(design.layers.count) layers · drag it, tap twice to flip")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.bottom)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(red: 0.03, green: 0.024, blue: 0.1))
+        .navigationTitle(design.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
     }
 }

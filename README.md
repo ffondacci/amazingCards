@@ -12,9 +12,9 @@ engineering guidelines.
 
 | Product | What it contains |
 |---|---|
-| `CardCore` | Pure models: `Card`, `CardContent` (creature / artist / painting / celestial), `Rarity`, `CardFinish`, `BoosterPack`, `BoosterGenerator`, `SeededRandomNumberGenerator`. No UI. |
+| `CardCore` | Pure models: `Card`, `CardContent` (creature / artist / painting / celestial), `ParallaxDesign` (layers: picture, glow backdrop, big word, title, text box, specs; neon or rim frame; specks; back), `Rarity`, `CardFinish`, `BoosterPack`, `BoosterGenerator`, `SeededRandomNumberGenerator`. No UI. |
 | `CardFX` | Metal shaders + SwiftUI modifiers: `CardEffect`, `HoloStyle`, `cardMotion(...)` (apply it *outside* the effects), `CardMotionStage`, `TiltTransform`, `DeviceMotionSource`, animatable `cardSweep` / `cardDissolve` / `cardRipple`, `renderScale(_:)` for cheap backgrounds, `CardFXShaders.warmUp(first:)`. |
-| `CardUI` | `CardView` (picks a template per content), `CardMetrics` (size-relative layout), `FinishRecipe`, `CardTheme`, `CardBackView`, `FlippableCardView`, `InteractiveCardView`, `CardFanView`, `ArtworkView` + `ArtworkLoader` actor, `cardIdleFloat`, `cardShake`, `.cardDissolve()` transition. |
+| `CardUI` | `CardView` (picks a template per content), `ParallaxCardView` (a layered card: layers at depths slide apart as it tilts, drag to turn, tap twice to flip, `ParallaxMode` card / stack / spread), `CardMetrics` (size-relative layout), `FinishRecipe`, `CardTheme`, `CardBackView`, `FlippableCardView`, `InteractiveCardView`, `CardFanView`, `ArtworkView` + `ArtworkLoader` actor, `cardIdleFloat`, `cardShake`, `.cardDissolve()` transition. |
 | `CardStage` | Metal 3D stage (`StageView`, `StageScene`, `StageSettings`): foil pouches on a carousel in an analytic studio (puff, wrinkles, crimped seals, holo foil, clear coat, floor reflection, shadow, shine sweep), the six openings (`OpeningStyle`: tear, rip, zip, melt, roll, lid), the deal of the cards with the rare one revealed last, flakes, sparks, smoke and the aura. Pictures come in as `PackSkin` / `CardSkin`. |
 | `CardPack` | `PackStageView` (the stage printed with `PackDesign`s, dealing our cards), `PackPrints` (renders pack and card pictures for the stage), `PackBackView`, `PackLayout` + `.packLayout(_:)` (every size of the pack flow as fractions: `.standard`, `.compact`, `.large`), `PackDesign` (pocket-pack layout: thick top band, double seam, full-bleed cover, thin bottom band, foil and prism strength), `BoosterPackView` (tall pouch with crimped seals, `PackShape` silhouette, flat glossy print), `PackCarouselView`, `tearable(...)` + `TearState` + `TornEdgeShape`, `TornPackView` (strip rolls up with `ck_curl`, sparks and paper flecks with `ck_sparks`, tension under the finger, bag mouth with `ck_mouth`), `CardSwipeStack`, `PackOpeningView` + `PackOpeningModel`, `PackSoundscape` + `PackSoundSet` (your own sound files for the tear), `PackWarmUpView`. |
 
@@ -88,6 +88,23 @@ The 2D bricks of the previous flow stay available: `PackOpeningView`,
 mouth with `ck_mouth`), `CardSwipeStack`, the generic `tearable` modifier
 (`ck_tear`), `PackLayout` for their sizes, `PackSoundscape` + `PackSoundSet`
 for sound files, `PackWarmUpView`.
+
+## Parallax cards
+
+`ParallaxCardView(design:mode:flips:)` draws a `ParallaxDesign`: a 2:3 card
+whose picture is a stack of layers, each with a depth. Tilt it (drag, or
+the device tilt from `cardMotion`) and the layers slide apart by their
+depth; layers that "pop" stand out of the window in 3D. Layer types: a
+picture (full-bleed or free, with halo, shadow, reflection, a light that
+slides across it and a breathing scale; pictures without transparency can
+be cut out on black), a glowing backdrop (tone, rays, rings, floor), a big
+word, a title with a badge, a text box and four specs. Two looks: a neon
+frame around a window, or a rimmed poster. The card sways by itself, shows
+a glare on its glass, floating specks (stardust, twinkle, glitter), and has
+a back. `ParallaxMode.stack` pulls the layers apart in depth on outlined
+glass plates, `.spread` lays them side by side. Choreography and looks
+follow MetalForge's Parallax Cards; the SwiftUI implementation (projection
+transforms, springs, Canvas specks) is original.
 
 ## Build, run, test
 

@@ -144,7 +144,7 @@ xcodebuild -project "Amazing Cards/Amazing Cards.xcodeproj" -scheme "Amazing Car
 
 The demo accepts `-demoRoute collection|effects|animations|booster` to open a
 screen directly, `-card creature-vincent` or `-parallax saturn` to open one
-card, and `-showFPS YES` to overlay a display-link frame counter (current
+card, `-effect paper` to open an effect playground, and `-showFPS YES` to overlay a display-link frame counter (current
 rate and the worst half-second of the last three seconds).
 
 ## Android (Vulkan)
@@ -158,8 +158,8 @@ coverage, negative viewport so the Metal matrices and winding carry over).
 
 | Module | What it contains |
 |---|---|
-| `android/cardkit` | Library. `cpp/`: `StageScene`, `StageRenderer`, `VkContext`, pouch geometry, particles, JNI bridge, GLSL shaders compiled to SPIR-V by `glslc` at build time. `kotlin/`: `core` models (`Card`, `PackDesign`, `BoosterGenerator`…), `stage` (`Stage`, `StageView`, `PackStageView`, `StageSettings`, `OpeningStyle`, `PackPrints`), `paint` (the pack and card prints drawn with `Canvas` the way the SwiftUI views draw them, in frame / artwork / overlay layers, `ArtworkProvider` for your own pictures), `fx` (the `CardFX` effects as AGSL: the 13 `HoloStyle`s, glare, sparkle, sweep, shimmer, holo paper, foil wrap, star field, nebula, burst; `FinishRecipe` per region; `CardMotionStage` with drag, gyroscope and showcase), `ui` (`CardFaceView` drawing the layers through chained AGSL paints, `FlippableCard`). |
-| `android/demo` | Compose demo: Collection (the twelve sample cards with their foil, tap one for the interactive card with finish picker, flip and gyroscope) and Booster (the stage, studio or night, the six openings). |
+| `android/cardkit` | Library. `cpp/`: `StageScene`, `StageRenderer`, `VkContext`, pouch geometry, particles, JNI bridge, GLSL shaders compiled to SPIR-V by `glslc` at build time. `kotlin/`: `core` models (`Card`, `PackDesign`, `BoosterGenerator`…), `stage` (`Stage`, `StageView`, `PackStageView`, `StageSettings`, `OpeningStyle`, `PackPrints`), `paint` (the pack and card prints drawn with `Canvas` the way the SwiftUI views draw them, in frame / artwork / overlay layers, `ArtworkProvider` for your own pictures), `fx` (the `CardFX` effects as AGSL: the 13 `HoloStyle`s, glare, sparkle, sweep, shimmer, holo paper, foil wrap, star field, nebula, burst, chromatic split, dissolve, sparks, paper and paper tension; the passes run in dp like SwiftUI points; `FinishRecipe` per region; `CardMotionStage` with drag, gyroscope and showcase), `ui` (`CardFaceView` drawing the layers through chained AGSL paints, `EffectSurface`, `FlippableCard`). |
+| `android/demo` | Compose demo: Collection (the twelve sample cards with their foil, tap one for the interactive card with finish picker, flip and gyroscope), Effects (every pass with a live preview and a playground: intensity, subject, Play for sweep and dissolve) and Booster (the stage, studio or night, the six openings). |
 
 ```sh
 cd android && JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :demo:assembleDebug
@@ -168,13 +168,14 @@ adb shell am start -n com.amazingcards.demo/.MainActivity --es demoRoute booster
   --es opening zip --es openAfter 2000     # style, and open the front pack by itself
 adb shell am start -n com.amazingcards.demo/.MainActivity --es demoRoute collection \
   --es card creature-vincent --es dumpFaces 1   # one card; the painted layers as PNGs in files/faces
+adb shell "am start -n com.amazingcards.demo/.MainActivity --es demoRoute effects --es effect 'paper tension'"
 ```
 
 Needs the NDK 28, CMake 3.31 and a Vulkan device or an emulator started with
 `-feature Vulkan -gpu host`. The card effects need Android 13 (AGSL); the
 emulator's GPU bridge does not draw chained runtime shaders, so the foil is
-only visible on a device. Not ported yet: the parallax cards, the effects
-and animations catalogs.
+only visible on a device. Not ported yet: the parallax cards and the
+animations catalog.
 
 ## Performance notes
 

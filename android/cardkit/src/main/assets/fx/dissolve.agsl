@@ -1,0 +1,20 @@
+// Noise-threshold dissolve with a glowing edge. `progress` 0 = intact, 1 = gone.
+uniform shader content;
+uniform float2 size;
+uniform float progress;
+uniform float edgeWidth;
+uniform float3 edgeColor;
+uniform float scale;
+
+half4 main(float2 position) {
+    float4 color = float4(content.eval(position));
+    if (color.a < 0.004 || progress <= 0.0005) { return half4(color); }
+    float2 uv = position / max(size, float2(1.0));
+    float n = fbm(uv * scale, 4) * 1.3 - 0.15;
+    float threshold = progress * (1.0 + edgeWidth * 2.0) - edgeWidth;
+    if (n < threshold) { return half4(0.0); }
+    float edge = 1.0 - ss(threshold, threshold + edgeWidth, n);
+    float3 src = unpremulRgb(color);
+    float3 result = mix(src, edgeColor * 1.5, edge);
+    return premulRgb(result, color.a);
+}

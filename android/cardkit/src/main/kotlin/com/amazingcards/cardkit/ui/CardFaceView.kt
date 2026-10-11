@@ -49,6 +49,7 @@ fun CardFaceView(card: Card, face: CardFace, motion: CardMotion, showsFinish: Bo
     val clip = remember { Path() }
     Canvas(modifier.aspectRatio(CardMetrics.ASPECT_RATIO)) {
         val w = size.width; val h = size.height
+        val dpi = density
         val native = drawContext.canvas.nativeCanvas
         val scale = w / face.width
         val radius = w * 4.5f / 100f
@@ -60,11 +61,17 @@ fun CardFaceView(card: Card, face: CardFace, motion: CardMotion, showsFinish: Bo
             // local matrix must be final before it is chained, because
             // setInputShader captures the child's native instance right away.
             val offset = rect.left != 0f || rect.top != 0f
+            // The passes work in dp: the picture maps dp to its pixels, the plain draw maps px.
+            val chained = if (effects.isEmpty()) null else {
+                matrix.reset()
+                matrix.setScale(rect.width() / dpi / bitmap.width, rect.height() / dpi / bitmap.height)
+                val dpInput = BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply { setLocalMatrix(matrix) }
+                CardFXShaders.chain(context, effects, dpInput, motion, rect.width() / dpi, rect.height() / dpi, dpi)
+            }
             matrix.reset()
             matrix.setScale(rect.width() / bitmap.width, rect.height() / bitmap.height)
             if (!offset) matrix.postTranslate(rect.left, rect.top)
             val input = BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply { setLocalMatrix(matrix) }
-            val chained = CardFXShaders.chain(context, effects, input, motion, rect.width(), rect.height())
             paint.shader = chained ?: input
             paint.blendMode = null
             if (offset) {
@@ -88,7 +95,7 @@ fun CardFaceView(card: Card, face: CardFace, motion: CardMotion, showsFinish: Bo
             // Framed cards only carry a glare over the whole card: an exact SCREEN overlay.
             for (effect in recipe.fullCard) {
                 if (effect !is CardEffect.Glare) continue
-                val overlay = CardFXShaders.glareOverlay(context, effect, motion, w, h) ?: continue
+                val overlay = CardFXShaders.glareOverlay(context, effect, motion, w / dpi, h / dpi, dpi) ?: continue
                 paint.shader = overlay
                 paint.blendMode = BlendMode.SCREEN
                 native.save(); native.clipPath(clip)

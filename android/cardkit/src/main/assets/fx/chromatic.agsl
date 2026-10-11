@@ -1,0 +1,13 @@
+// RGB split along the tilt direction, `amount` in pixels.
+uniform shader content;
+uniform float2 size;
+uniform float2 tilt;
+uniform float amount;
+
+half4 main(float2 position) {
+    float2 offset = tilt * amount;
+    half4 r = content.eval(position + offset);
+    half4 g = content.eval(position);
+    half4 b = content.eval(position - offset);
+    return half4(r.r, g.g, b.b, g.a);
+}

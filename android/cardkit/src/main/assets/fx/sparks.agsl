@@ -1,0 +1,65 @@
+// Sparks at a cutting point: a hot core at `origin`, an ember trail behind
+// it (opposite to `direction`), particles thrown backwards that fall and
+// die, and slow paper flecks. Generator: ignores the content.
+uniform shader content;
+uniform float2 size;
+uniform float2 origin;
+uniform float2 direction;
+uniform float time;
+uniform float intensity;
+uniform float3 tint;
+uniform float life;
+
+half4 main(float2 position) {
+    float2 p = position - origin;
+    if (dot(p, p) > 280.0 * 280.0) { return half4(0.0); }
+    float2 dir = length(direction) > 0.001 ? normalize(direction) : float2(1.0, 0.0);
+    float2 perp = float2(-dir.y, dir.x);
+    float glow = 0.0;
+    float d2 = dot(p, p);
+    float pulse = 0.85 + 0.15 * sin(time * 37.0) + 0.1 * sin(time * 59.0);
+    glow += exp(-d2 / 110.0) * 1.6 * pulse;
+    glow += exp(-d2 / 1600.0) * 0.35;
+    float along = dot(p, -dir);
+    float across = dot(p, perp);
+    float flicker = 0.7 + 0.3 * vnoise(float2(along * 0.15 - time * 6.0, 3.0));
+    float trail = exp(-across * across / 10.0) * ss(90.0, 0.0, along) * step(0.0, along);
+    glow += trail * flicker * 0.9;
+    float lifetime = max(life, 0.1);
+    for (int i = 0; i < 20; ++i) {
+        float seed = float(i) * 7.31;
+        float t = fract(time / lifetime + hash21(float2(seed, 1.0)));
+        float age = t * lifetime;
+        float back = -60.0 - 160.0 * hash21(float2(seed, 2.0));
+        float side = (hash21(float2(seed, 3.0)) - 0.5) * 300.0;
+        float2 velocity = dir * back + perp * side;
+        float2 pos = velocity * age + float2(0.0, 160.0 * age * age);
+        float2 q = p - pos;
+        float2 v = velocity + float2(0.0, 320.0 * age);
+        float speed = max(length(v), 1.0);
+        float2 vd = v / speed;
+        float alongV = dot(q, vd);
+        float acrossV = dot(q, float2(-vd.y, vd.x));
+        float r = 1.5 + 2.2 * hash21(float2(seed, 4.0));
+        float stretch = 1.0 + speed * 0.012;
+        float spark = exp(-(alongV * alongV / (2.0 * r * r * stretch * stretch) + acrossV * acrossV / (2.0 * r * r)))
+            * (1.0 - t) * (0.75 + 0.25 * sin(time * 40.0 + seed));
+        glow += spark * 1.7;
+    }
+    float paper = 0.0;
+    for (int i = 0; i < 8; ++i) {
+        float seed = 200.0 + float(i) * 5.17;
+        float span = lifetime * 2.2;
+        float t = fract(time / span + hash21(float2(seed, 1.0)));
+        float age = t * span;
+        float2 velocity = dir * (-20.0 - 50.0 * hash21(float2(seed, 2.0))) + perp * (hash21(float2(seed, 3.0)) - 0.5) * 90.0;
+        float2 pos = velocity * age + float2(0.0, 70.0 * age * age);
+        float2 q = p - pos;
+        q.x += sin(time * 9.0 + seed) * 2.0;
+        paper += exp(-dot(q, q) / 3.2) * (1.0 - t);
+    }
+    float a = clamp((glow + paper * 0.9) * intensity, 0.0, 1.0);
+    float3 col = tint * glow + float3(1.0, 0.96, 0.85) * glow * glow * 0.5 + float3(0.95, 0.93, 0.88) * paper * 0.9;
+    col = clamp(col * intensity, 0.0, 1.0);
+    return half4(half3(col * a), half(a));
+}

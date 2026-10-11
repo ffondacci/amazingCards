@@ -5,8 +5,10 @@ import SwiftUI
 
 /// Every shader pass of `CardFX`, with a live preview and a playground.
 struct EffectsCatalogView: View {
+    @State private var path: [CardEffect] = []
+
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             List {
                 Section("Foil styles (ck_holo)") {
                     ForEach(CardEffect.showcase.filter(\.isHolo), id: \.self) { effect in
@@ -25,6 +27,14 @@ struct EffectsCatalogView: View {
             .navigationTitle("Effects")
             .navigationDestination(for: CardEffect.self) { effect in
                 EffectPlaygroundView(effect: effect)
+            }
+            .onAppear {
+                // `-effect paper` opens a playground straight away (screenshots, QA).
+                if let wanted = UserDefaults.standard.string(forKey: "effect")?.lowercased(),
+                   let effect = CardEffect.showcase.first(where: { $0.displayName.lowercased() == wanted })
+                    ?? CardEffect.showcase.first(where: { $0.displayName.lowercased().contains(wanted) }) {
+                    path = [effect]
+                }
             }
         }
     }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material3.Icon
@@ -25,7 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.amazingcards.cardkit.stage.OpeningStyle
 
-/** Tab root: the collection and the booster stage. `--es demoRoute booster` opens a tab at launch, `--es card <id>` a card. */
+/** Tab root: the collection, the effects catalog and the booster stage. `--es demoRoute booster` opens a tab at launch, `--es card <id>` a card, `--es effect paper` an effect playground. */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,21 +36,24 @@ class MainActivity : ComponentActivity() {
         val openAfter = intent.getStringExtra("openAfter")?.toLongOrNull() ?: 0L
         val cardId = intent.getStringExtra("card")
         val dumpFaces = intent.getStringExtra("dumpFaces") == "1"
+        val effectName = intent.getStringExtra("effect")
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(primary = Color(0xFFFFD60A), surface = Color(0xFF0F0F14))) {
-                var tab by remember { mutableIntStateOf(if (route == "booster") 1 else 0) }
+                var tab by remember { mutableIntStateOf(when (route) { "booster" -> 2; "effects" -> 1; else -> 0 }) }
                 Scaffold(
                     containerColor = Color(0xFF0F0F14),
                     bottomBar = {
                         NavigationBar(containerColor = Color(0xFF15151C)) {
                             NavigationBarItem(selected = tab == 0, onClick = { tab = 0 }, icon = { Icon(Icons.Default.GridView, null) }, label = { Text("Collection") })
-                            NavigationBarItem(selected = tab == 1, onClick = { tab = 1 }, icon = { Icon(Icons.Default.Inventory2, null) }, label = { Text("Booster") })
+                            NavigationBarItem(selected = tab == 1, onClick = { tab = 1 }, icon = { Icon(Icons.Default.AutoAwesome, null) }, label = { Text("Effects") })
+                            NavigationBarItem(selected = tab == 2, onClick = { tab = 2 }, icon = { Icon(Icons.Default.Inventory2, null) }, label = { Text("Booster") })
                         }
                     },
                 ) { padding ->
                     Box(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())) {
                         when (tab) {
                             0 -> CollectionScreen(cardId, dumpFaces)
+                            1 -> EffectsScreen(effectName)
                             else -> BoosterScreen(opening, openAfter)
                         }
                     }

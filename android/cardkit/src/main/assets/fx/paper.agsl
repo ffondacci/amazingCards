@@ -1,0 +1,199 @@
+// Crumpled paper wrapper: large and small facets lit by a grazing light
+// that follows the tilt / pointer, the print bending with the relief,
+// crimp bumps in the sealed bands, the pillow of the cards inside, grain
+// and fibres. Facet model after Paper Design's paper shader (Apache-2.0).
+// The crumple seeds are recomputed from their hash instead of kept in an
+// array: Adreno would spill an indexed array to scratch memory.
+uniform shader content;
+uniform float2 size;
+uniform float2 tilt;
+uniform float2 pointer;
+uniform float time;
+uniform float intensity;
+uniform float bulge;
+uniform float crimp;
+
+float2 hash22(float2 p) {
+    float3 p3 = fract(float3(p.xyx) * float3(0.1031, 0.1030, 0.0973));
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.xx + p3.yz) * p3.zy);
+}
+float lst(float e0, float e1, float x) { return clamp((x - e0) / (e1 - e0), 0.0, 1.0); }
+float2 cellTilt(float idx, float radius, float seed) {
+    float2 r = hash22(float2(idx + 31.0, idx * seed + 17.0));
+    float an = r.x * TAU;
+    return float2(cos(an), sin(an)) * mix(0.3, 1.7, r.y * r.y) * mix(0.7, 1.0, radius);
+}
+float2 seedPoint(int i, float seed, out float2 rand) {
+    rand = hash22(float2(float(i), float(i) * seed));
+    float an = rand.x * TAU;
+    return float2(cos(an), sin(an)) * rand.y;
+}
+
+float4 crumples(float2 uv, float seed, float2 L, out float crease) {
+    float near = 6e4; float nearB = 6e4;
+    float idx = 0.0; float rad = 0.0;
+    float2 nearP = float2(0.0); float2 nearPb = float2(0.0);
+    for (int i = 0; i < 10; ++i) {
+        float2 rand;
+        float2 p = seedPoint(i, seed, rand);
+        float2 d = uv - p;
+        float dsq = dot(d, d);
+        if (dsq < near) { nearB = near; nearPb = nearP; near = dsq; idx = float(i); rad = rand.y; nearP = p; }
+        else if (dsq < nearB) { nearB = dsq; nearPb = p; }
+    }
+    float l = sqrt(near); float lb = sqrt(nearB);
+    float2 dir = (uv - nearP) / max(l, 1e-4);
+    float edge = lst(0.0, 0.5, lb - l);
+    float shoulderLimit = l + 0.5;
+    float2 tiltV = cellTilt(idx, rad, seed);
+    float tiltSum = 1.0;
+    float2 wide = float2(0.0);
+    float wideSum = 0.0;
+    float toEdge = 9.0; float edgeSoft = 0.0;
+    for (int i = 0; i < 10; ++i) {
+        if (float(i) == idx) { continue; }
+        float2 rand;
+        float2 p = seedPoint(i, seed, rand);
+        float2 d = uv - p;
+        float dsq = dot(d, d);
+        if (dsq < shoulderLimit * shoulderLimit) {
+            float di = sqrt(dsq);
+            float sh = lst(0.5, 0.0, di - l);
+            wide += sh * (d / max(di, 1e-4) - dir);
+            wideSum += sh;
+        }
+        float pairSoft = 0.01 + 0.05 * step(0.2, rand.x) + 0.3 * rand.y;
+        float toBis = (dsq - near) / (0.2 * max(length(p - nearP), 1e-4));
+        if (toBis < toEdge) { toEdge = toBis; edgeSoft = pairSoft; }
+        float w = 1.0 - toBis / pairSoft;
+        if (w > 0.0) {
+            w *= w;
+            tiltV += w * cellTilt(float(i), rand.y, seed);
+            tiltSum += w;
+        }
+    }
+    float blend = clamp(toEdge / max(edgeSoft, 1e-4), 0.0, 1.0);
+    float2 sharp = (1.0 - edge) * ((uv - nearPb) / max(lb, 1e-4) - dir);
+    float2 rounding = mix(sharp, wide / max(wideSum, 1.0), min(2.0 * edgeSoft, 1.0));
+    float radial = l / max(l + toEdge, 1e-4);
+    float facing = 0.25 + 0.75 * max(0.0, dot(normalize(nearP - nearPb), L));
+    crease = (1.0 - ss(0.0, 0.12, toEdge)) * (1.0 - ss(0.06, 0.22, edgeSoft)) * facing;
+    return float4(tiltV / tiltSum + rounding * blend * radial, 0.2 * l, edge);
+}
+
+float2 crumpleDetail(float2 uv, float freq, float shift, float seed, float basePixel, float lineWidth, float2 L, out float depth, out float crease) {
+    depth = 0.0;
+    crease = 0.0;
+    float2 v = uv * freq;
+    float pixel = 0.9 * freq * basePixel;
+    float2 base = floor(v);
+    float n1 = 9.0; float n2 = 9.0;
+    float2 s1 = float2(0.0); float2 s2 = float2(0.0); float2 q1 = float2(0.0); float2 q2 = float2(0.0);
+    for (int y = -1; y <= 1; ++y) {
+        for (int x = -1; x <= 1; ++x) {
+            float2 cell = base + float2(float(x), float(y));
+            float2 q = hash22(float2(cell.y * 1.9 + 3.1 + shift, cell.x * 1.3 + 0.11 * seed));
+            if (q.y > 0.8) { continue; }
+            float2 r = hash22(float2(cell.x + 0.37 * seed + shift + 11.1, cell.y - 0.21 * seed + 5.7));
+            float2 sp = cell + 0.06 + 0.88 * r;
+            float2 d = v - sp;
+            float dsq = dot(d, d);
+            if (dsq < n1) { n2 = n1; s2 = s1; q2 = q1; n1 = dsq; s1 = sp; q1 = q; }
+            else if (dsq < n2) { n2 = dsq; s2 = sp; q2 = q; }
+        }
+    }
+    if (n1 > 8.0) { return float2(0.0); }
+    float an1 = q1.x * TAU; float mag1 = q1.y / 0.8;
+    float2 t1 = float2(cos(an1), sin(an1)) * mix(0.3, 1.7, mag1 * mag1);
+    float an2 = q2.x * TAU; float mag2 = q2.y / 0.8;
+    float2 t2 = float2(cos(an2), sin(an2)) * mix(0.3, 1.7, mag2 * mag2);
+    float spanLen = max(length(s1 - s2), 1e-4);
+    float toEdge = (n2 - n1) / (2.0 * spanLen);
+    float pair = hash21(s1 + s2 + 1.7 * abs(s1 - s2));
+    float pairSoft = 0.05 + 0.1 * step(pair, 0.4);
+    float b = clamp(toEdge / max(1.5 * pixel, 0.5 * pairSoft), 0.0, 1.0);
+    b = b * b * (3.0 - 2.0 * b);
+    float keep = step(0.45, hash21(s1 * 3.1 + s2 * 1.7)) * step(pairSoft, 0.1);
+    float facing = max(0.0, dot(normalize(s1 - s2), L));
+    crease = (1.0 - ss(0.0, lineWidth, toEdge)) * keep * (0.3 + 0.7 * facing);
+    float d1 = max(sqrt(n1), 1e-4);
+    depth = 0.2 * d1;
+    float shoulderAmt = max(0.0, 1.0 - toEdge / 0.42) * b;
+    float2 shoulder = float2(0.0);
+    if (shoulderAmt > 0.0) {
+        float d2 = max(sqrt(n2), 1e-4);
+        shoulder = shoulderAmt * ((v - s2) / d2 - (v - s1) / d1);
+    }
+    float2 mid = 0.5 * (t1 + t2);
+    return mid + (t1 - mid) * b + 0.9 * shoulder;
+}
+
+half4 main(float2 position) {
+    float2 s = max(size, float2(1.0));
+    float2 uv01 = position / s;
+    float aspect = s.x / s.y;
+    float2 patternUV = (uv01 - 0.5) * float2(aspect, 1.0);
+    float basePixel = 1.0 / s.y;
+    const float seed = 7.0;
+    float2 pnt = resolvePointer(pointer, tilt) - 0.5;
+    float2 L = normalize(float2(-0.35 + pnt.x * 1.4, -0.75 + pnt.y * 1.4));
+    float2 warp = float2(vnoise(patternUV * 3.0 + 2.0), vnoise(patternUV * 3.0 + 9.0)) - 0.5;
+    float2 crumplesUV = patternUV * 2.2 + 0.03 * warp;
+
+    float creaseBig = 0.0;
+    float4 c = crumples(crumplesUV, seed, L, creaseBig);
+    float2 bend = 0.5 * c.xy;
+    float2 relief = bend;
+    relief -= 0.1 * max(dot(relief, L), 0.0) * L;
+
+    float detailFreq = 5.0;
+    float detailAmp = 0.22;
+    float2 detailGrad = float2(0.0);
+    float crease = creaseBig;
+    float creaseWeight = 0.6;
+    for (int i = 0; i < 2; ++i) {
+        float layerDepth; float layerCrease;
+        detailGrad += detailAmp * crumpleDetail(crumplesUV, detailFreq, 31.0 * float(i), seed, basePixel * 2.2, 0.045, L, layerDepth, layerCrease);
+        crease = max(crease, layerCrease * creaseWeight);
+        creaseWeight *= 0.6;
+        detailAmp *= 0.45;
+        detailFreq *= 2.1;
+    }
+    float2 detailTilt = 1.5 * detailGrad;
+    detailTilt -= 0.65 * max(dot(detailTilt, L), 0.0) * L;
+    relief += detailTilt;
+
+    float band = step(position.y, crimp) + step(s.y - crimp, position.y);
+    float tri = sign(fract(position.x / (s.x / 28.0)) - 0.5);
+    relief.x += 0.6 * tri * band;
+    float2 cuv = uv01 * 2.0 - 1.0;
+    float2 pillow = float2(
+        -sign(cuv.x) * pow(abs(cuv.x), 1.6) * (1.0 - pow(abs(cuv.y), 2.6)),
+        -sign(cuv.y) * pow(abs(cuv.y), 1.6) * (1.0 - pow(abs(cuv.x), 2.6)));
+    relief += bulge * 0.9 * pillow;
+
+    float2 offset = (bend * 2.2 + bulge * 0.6 * pillow) * intensity;
+    float offsetLength = length(offset);
+    if (offsetLength > 2.5) { offset *= 2.5 / offsetLength; }
+    float2 displaced = clamp(position - offset, float2(0.0), s);
+    float4 src = float4(content.eval(displaced));
+    if (src.a < 0.004) { return half4(src); }
+
+    const float grazing = 0.7;
+    float unlit = cos(grazing);
+    float slope = clamp(dot(relief, L), -1.2, 1.2);
+    float lit = max(cos(slope + grazing), 0.0);
+    float lightPower = mix(0.6, 1.0, clamp(0.5 + dot(uv01 - 0.5, L), 0.0, 1.0));
+    float shade = (lit - unlit) * 1.3 * lightPower;
+    float grain = (vnoise(position * 0.9) - 0.5) * 0.10 + (hash21(floor(position * 0.5)) - 0.5) * 0.05;
+    float fibre = pow(1.0 - abs(2.0 * vnoise(float2(position.x * 0.12, position.y * 0.45) + 3.0) - 1.0), 8.0) * 0.06;
+    float3 rgb = unpremulRgb(src);
+    float3 paper = rgb * (1.0 + shade + grain + fibre);
+    float sheen = (pow(lit, 6.0) - pow(unlit, 6.0)) * 0.45 * lightPower;
+    paper += sheen * float3(1.0, 0.98, 0.95);
+    float3 mark = float3(0.95, 0.93, 0.89) * (0.75 + 0.45 * lit);
+    paper = mix(paper, mark, crease * 0.42);
+    float3 result = mix(rgb, paper, clamp(intensity, 0.0, 1.0));
+    return premulRgb(result, src.a);
+}
